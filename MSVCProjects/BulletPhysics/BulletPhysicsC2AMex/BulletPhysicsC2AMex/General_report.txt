@@ -1,0 +1,6 @@
+Tentative Changes:
+
+ - Need to recompile the physics library to support double type precision by defining BT_USE_DOUBLE_PRECISION in build system or at the top of
+   Bullet/src/LinearMath/btScalar.h
+   
+ - try using the offset trimesh instead of the one that contains the mesh placed at the origin

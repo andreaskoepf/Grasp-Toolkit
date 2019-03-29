@@ -1,0 +1,17 @@
+
+-----------------Finger Model Registration ------------------  
+    Select one of the following options 
+                GENERAL ATTRIBUTES
+        1 - (required) Enter Model Name
+        2 - (optional) Enter Tag  
+                MODEL COMPOSITION
+        3 - (required) add Link Model           
+        4 - (optional) add Solid Model as base object    
+                ADDITIONAL ATTRIBUTES
+        5 - (optional) Reduce Patch number 
+        6 - (optional) Set Color
+
+        7 - SHOW CURRENT DATA
+        8 - REGISTER
+        9 - INSTRUCTIONS
+        0 -  ABORT SESSION WITHOUT SAVING

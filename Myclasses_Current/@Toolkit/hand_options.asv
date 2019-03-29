@@ -1,0 +1,16 @@
+
+-----------------Hand Model Registration ------------------  
+    Select one of the following options 
+                GENERAL ATTRIBUTES
+        1 - (required) Enter Model Name
+        2 - (optional) Enter Tag  
+                MODEL COMPOSITION
+        3 - (required) add Finger Model           
+        4 - (required) add Palm Model     
+                ADDITIONAL ATTRIBUTES
+        5 - (optional) Set Color
+        6 - (optional) Reduce Patch number
+        7 - SHOW CURRENT DATA
+        7 - REGISTER
+        8 - INSTRUCTIONS
+        0 -  ABORT SESSION WITHOUT SAVING

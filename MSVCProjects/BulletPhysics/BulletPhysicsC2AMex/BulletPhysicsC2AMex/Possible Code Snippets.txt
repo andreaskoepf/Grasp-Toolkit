@@ -1,0 +1,171 @@
+
+Code to switch a body from a kinematic to a dynamic State
+
+btTransform btt;
+Globals::phyWorld->removeRigidBody(mToolBody);
+mToolBody->setMassProps(0, btVector3(0,0,0));
+mToolBody->setCollisionFlags(mToolBody->getCollisionFlags() | btCollisionObject::CF_KINEMATIC_OBJECT);
+btt.setIdentity();
+btt.setOrigin(BtOgre::Convert::toBullet(cPos));
+btt.setRotation(BtOgre::Convert::toBullet(Ori));
+mToolBody->getMotionState()->setWorldTransform(btt);
+mToolBody->setActivationState(DISABLE_DEACTIVATION);
+Globals::phyWorld->addRigidBody(mToolBody);
+
+
+
+
+
+Code to detect collisions in a customized way
+
+//by default, Bullet will use its own nearcallback, but you can override it using dispatcher->setNearCallback()
+void customNearCallback(btBroadphasePair& collisionPair, btCollisionDispatcher& dispatcher, const btDispatcherInfo& dispatchInfo)
+{
+		btCollisionObject* colObj0 = (btCollisionObject*)collisionPair.m_pProxy0->m_clientObject;
+		btCollisionObject* colObj1 = (btCollisionObject*)collisionPair.m_pProxy1->m_clientObject;
+
+		if (dispatcher.needsCollision(colObj0,colObj1))
+		{
+			//dispatcher will keep algorithms persistent in the collision pair
+			if (!collisionPair.m_algorithm)
+			{
+				collisionPair.m_algorithm = dispatcher.findAlgorithm(colObj0,colObj1);
+			}
+
+			if (collisionPair.m_algorithm)
+			{
+				btManifoldResult contactPointResult(colObj0,colObj1);
+
+				if (dispatchInfo.m_dispatchFunc == 		btDispatcherInfo::DISPATCH_DISCRETE)
+				{
+					//discrete collision detection query
+					collisionPair.m_algorithm->processCollision(colObj0,colObj1,dispatchInfo,&contactPointResult);
+				} else
+				{
+					//continuous collision detection query, time of impact (toi)
+					float toi = collisionPair.m_algorithm->calculateTimeOfImpact(colObj0,colObj1,dispatchInfo,&contactPointResult);
+					if (dispatchInfo.m_timeOfImpact > toi)
+						dispatchInfo.m_timeOfImpact = toi;
+
+				}
+			}
+		}
+
+}
+.
+.
+.
+// add your custom near callback
+	//this is optional
+	m_dispatcher->setNearCallback(customNearCallback);
+	
+	
+	
+	
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////	
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+	
+Code to another possible implementation of the collision callback for a given body
+
+	///ContactResultCallback is used to report contact points
+	struct	ContactResultCallback
+	{
+		short int	m_collisionFilterGroup;
+		short int	m_collisionFilterMask;
+		
+		ContactResultCallback()
+			:m_collisionFilterGroup(btBroadphaseProxy::DefaultFilter),
+			m_collisionFilterMask(btBroadphaseProxy::AllFilter)
+		{
+		}
+
+		virtual ~ContactResultCallback()
+		{
+		}
+		
+		virtual bool needsCollision(btBroadphaseProxy* proxy0) const
+		{
+			bool collides = (proxy0->m_collisionFilterGroup & m_collisionFilterMask) != 0;
+			collides = collides && (m_collisionFilterGroup & proxy0->m_collisionFilterMask);
+			return collides;
+		}
+
+		virtual	btScalar	addSingleResult(btManifoldPoint& cp,	const btCollisionObject* colObj0,int partId0,int index0,const btCollisionObject* colObj1,int partId1,int index1) = 0;
+	};
+	
+	
+	
+	override the structure and the call the dynamics world method
+	
+	a - 
+	///contactTest performs a discrete collision test between colObj against all objects in the btCollisionWorld, and calls the resultCallback.
+	///it reports one or more contact points for every overlapping object (including the one with deepest penetration)
+	void	contactTest(btCollisionObject* colObj, ContactResultCallback& resultCallback);
+
+	or b -
+	///contactTest performs a discrete collision test between two collision objects and calls the resultCallback if overlap if detected.
+	///it reports one or more contact points (including the one with deepest penetration)
+	void	contactPairTest(btCollisionObject* colObjA, btCollisionObject* colObjB, ContactResultCallback& resultCallback);
+	
+This solution is only possible for any bullet versions 2.76 onwards.
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////	
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Another possible way of determining collision for a give object is by using a ghost object as
+	
+	      btManifoldArray   manifoldArray;
+      btBroadphasePairArray& pairArray = ghostObject->getOverlappingPairCache()->getOverlappingPairArray();
+      int numPairs = pairArray.size();
+
+      for (int i=0;i<numPairs;i++)
+      {
+         manifoldArray.clear();
+
+         const btBroadphasePair& pair = pairArray[i];
+         
+         //unless we manually perform collision detection on this pair, the contacts are in the dynamics world paircache:
+         btBroadphasePair* collisionPair = dynamicsWorld->getPairCache()->findPair(pair.m_pProxy0,pair.m_pProxy1);
+         if (!collisionPair)
+            continue;
+
+         if (collisionPair->m_algorithm)
+            collisionPair->m_algorithm->getAllContactManifolds(manifoldArray);
+
+         for (int j=0;j<manifoldArray.size();j++)
+         {
+            btPersistentManifold* manifold = manifoldArray[j];
+            btScalar directionSign = manifold->getBody0() == m_ghostObject ? btScalar(-1.0) : btScalar(1.0);
+            for (int p=0;p<manifold->getNumContacts();p++)
+            {
+             	const btManifoldPoint&pt = manifold->getContactPoint(p);
+                if (pt.getDistance()<0.f)
+		{
+			const btVector3& ptA = pt.getPositionWorldOnA();
+			const btVector3& ptB = pt.getPositionWorldOnB();
+			const btVector3& normalOnB = pt.m_normalWorldOnB;
+			/// work here
+		}
+            }
+         }
+      }
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////	
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+

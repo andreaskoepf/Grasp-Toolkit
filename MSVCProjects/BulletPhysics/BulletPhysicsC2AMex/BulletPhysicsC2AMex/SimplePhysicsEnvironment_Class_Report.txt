@@ -1,0 +1,3 @@
+Tentative Changes:
+
+ - Incorporate addBody method.  The constructor should also be modified in order to delete pointers that contain a reference to btCollisionObjects 

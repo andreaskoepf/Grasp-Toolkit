@@ -1,0 +1,147 @@
+%[collisionGroupResults,wrenchSpace,searchedIndices] =
+%                                   findForceClosureGrasp(hand,obj)
+%[collisionGroupResults,wrenchSpace,searchedIndices] =
+%                                   findForceClosureGrasp(hand,obj,options)
+% options struct
+%   JointProfiles:   f x 1 JointProfile array where f is equal to 
+%                       the number of fingers and each object contains a
+%                       corresponding an initial and final Joint
+%                       Configuration as well as the number of step.  Their
+%                       order should be equal to the corresponding index in
+%                       the hand object
+%   SearchIndices:  f x 1 double array where each element corresponds to an
+%                   index of a corresponding finger in the hand object.
+%                   This will be use to guide the search in a corresponding
+%                   order.
+%   InitialWrenchSets: 1 x w WrenchSet array where all of the elements in
+%                   this array are used to initialize the wrench space.
+%
+
+% optional input arguments
+%   indices of fingers to use for the search of a Force-Closure grasp
+%   environment object to use in the search of valid contact configurations
+%
+% optional output arguments
+%   indices of fingers that contributed to the formation of the resulting
+%       Force-Closure grasp.
+%   Wrench Space object corresponding to the resulting Force-Closure grasp
+%
+% additional required parameters
+%   Frinction Model
+%   CombinedFriction
+%   Resolution
+%
+% notes:
+%   incorporate setFrictionModelMethod in wrench set object
+% creating hand and object
+hand = Hand('Prototype1');
+obj = Sphere(4);
+
+%%
+hand.Frame = Geometry.translation('z',4);
+obj.Frame = Geometry.translation('zx',[-1 8]);
+hand';
+obj';
+
+%% using ccd to find contact pose between the palm and object
+palm = Solid(hand.PalmObject);
+palmStartTransform = palm.Frame;
+palmEndTransform = Geometry.translation('z',-10);
+%palm.setPhysicsHandle;
+%obj.setPhysicsHandle;
+
+
+ccd = CollisionDetection.ContinuousCollisionDetection;
+%ccd.createMexInstance;
+ccd.setObjectA(palm,eye(4));
+ccd.setObjectB(obj,eye(4));
+%%
+pairResult = ccd.performCCDPairTest(palmStartTransform,palmEndTransform,...
+    obj.Frame,obj.Frame);
+
+disp(pairResult)
+
+%palm.destroyPhysicsHandle
+
+%% placing hand at contact pose
+hand.Frame = pairResult.TOC_TransformA;
+hand';
+obj';
+
+
+%% creating joint profiles
+numSteps = 4;
+numFingers = length(hand.Fingers);
+jointProfiles(numFingers) = MotionProfile.JointProfile;
+
+searchIndices = [1 5 2 4 3];
+
+for n = searchIndices
+    
+    jc1 = MotionProfile.JointConfiguration(hand.Fingers(n));
+    jc2 = MotionProfile.JointConfiguration(hand.Fingers(n));
+    
+    jc1.setJointValues(zeros(hand.Fingers(n).DOF,1));
+    jc2.setJointValues([0 pi/2 repmat(pi/2,1,hand.Fingers(n).DOF-2)]);
+    
+    jointProfiles(n) = MotionProfile.JointProfile(jc1,jc2);
+    jointProfiles(n).setNumSteps(numSteps);
+    
+end
+%%
+options.JointProfiles = jointProfiles;
+options.SearchIndices = searchIndices;
+options.InitialWrenchSets = [];
+%options.InitialWrenchSets = pairResult.createWrenchSet;
+
+
+%% initializing variables
+continueSearchingForceClosure = true;
+
+currentNumberOfFingersSearched = 0;
+currentNumberOfPrimitiveWrenches = 0;
+%wrenchSpace = WrenchSpace.WrenchSpace;
+frictionModel = 'PCF';
+friction = 0.5;
+resolution = 8;
+numWrenchSpaceDimensions = 6;
+CollisionGroupContainer = containers.Map(0,struct('field1',[],'field2',[]));
+CollisionGroupContainer.remove(0);
+autoGenerateJointLimits = false;
+
+        
+%%
+for currentFingerIndex = options.SearchIndices;
+    
+    fingerObj = hand.Fingers(currentFingerIndex);
+    
+    if autoGenerateJointLimits
+        
+        jointLimits = fingerObj.JointLimits;
+        jointSteps = 10*ones(fingerObj.DOF,1);
+        
+    else
+        
+        jointConf= jointProfiles(currentFingerIndex).JointConfigurations;
+        jointLimits = [jointConf(1).JointValues jointConf(2).JointValues];
+        jointSteps = repmat(jointProfiles(currentFingerIndex).NumSteps,fingerObj.DOF,1);
+        
+    end
+    
+
+    ccdOptions.Environment = [];
+    %ccdOptions.Environment = environment;
+    ccdOptions.JointLimitValues = jointLimits;
+    ccdOptions.JointSteps = jointSteps;
+    
+    
+    % generating collision group result objects
+    fprintf('\nForceClosure Search Stage 1 - Calling CCD on %ith finger\n',currentFingerIndex)
+    collisionGroupResult = CollisionDetection.ContinuousCollisionDetection.performCCDArticulatedBodyTest(...
+        fingerObj,obj,ccdOptions);
+    
+    % storing results
+    CollisionGroupContainer(currentFingerIndex) = collisionGroupResult;
+    
+end
+

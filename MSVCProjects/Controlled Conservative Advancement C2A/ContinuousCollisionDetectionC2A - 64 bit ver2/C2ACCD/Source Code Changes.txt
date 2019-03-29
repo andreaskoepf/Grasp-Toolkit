@@ -1,0 +1,8 @@
+File Name				Line Numbers			Change Number		Description
+PQP_Compile.h			48 - 54						1				Instructed
+InterpMotion.cpp		7 - 8						2				Header file not needed
+C2A.h					146 - 148					3				Added Normal propery 
+C2A.cpp					2274 - 2398					4				Added Contact_normal_new global method
+C2A_Internal.h			28 - 30						5				Added header file "C2A/LinearMath.h"
+C2A_Internal.h			44 - 46						6				Added property Vertex
+C2A_Build.h				235 - 256					7				Commented functions

@@ -1,0 +1,16 @@
+<!-- RigidBody Model Registration File -->
+<!-- Instructions -->
+<RigidBodyModel>
+  <ModelName>Box</ModelName>
+  <Tag> </Tag>
+  <Mass>1</Mass>
+  <COG>[0;0;0]</COG>
+  <InertiaTensor>eye(3)</InertiaTensor>
+  <EdgeColor>Color.BLUE</EdgeColor>
+  <FaceColor>Color.BLUE</FaceColor>
+  <Shape>
+    <ModelName>BoxShape</ModelName>
+    <Transform>eye(4)</Transform>
+    <Scale>[1 1 1]</Scale>
+  </Shape>
+</RigidBodyModel>

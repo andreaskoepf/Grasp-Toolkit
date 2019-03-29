@@ -1,0 +1,40 @@
+classdef CustomTimer < handle
+    properties
+        CurrentData
+        
+    end
+    
+    properties(SetAccess=protected,GetAccess=protected)
+        Timer
+    end
+
+    methods
+        function t=CustomTimer(currentData)
+            t.Timer=timer;
+            t.CurrentData=currentData;
+            set(t.Timer,'TimerFcn',{@callback1})
+
+        end
+        
+        function delete(t)
+            % calling the superclass method
+            delete@timer(t) 
+        end
+        
+        function start(t)
+            start@timer(t)
+        end
+
+
+
+    end
+end
+
+
+function callback1(t,evnt)
+    for n=1:length(t.CurrentData);
+        pause(0.5)
+        disp(t.CurrentData(n))
+    end
+    disp(fieldnames(evnt))
+end

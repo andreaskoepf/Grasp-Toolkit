@@ -1,0 +1,28 @@
+Introduction
+This program shows how to compile and link the new Matlab mexw32 files using Visual Studio 2005. Matlab 7.1 changed its mex file format to .mexw32 from .dll. All new versions, MATLAB 7.1 (R14SP3), MATLAB 7.2 (R2006a), MATLAB 7.3 (R2006b), and MATLAB 7.4 (R2007a), compile mexw32 files. Previously compiled mex .dlls must be recompiled. Using Visual Studio 2005 makes this process easy. Furthermore, there are many times where one needs to use outside headers and libraries from other C/C++ functions. Visual Studio works much better than Matlab's own compiler in these situations. Mex files allow one to create very powerful Matlab functions, and are able to use all the functionality of .m Matlab script files. 
+
+Background
+Why did I learn this in the first place? I needed to control a laser gyroscope from Matlab. I had the C functions to control the laser from the command prompt, so I needed to implement the C code inside of a Matlab mexw32 file. Not only did I need to add the libraries and headers for the mex file to compile, but I also needed to add in the laser libraries. My example code contains function calls to the laser device, however they are commented out since they will not compile without the correct libraries. You can switch your code, for your own specific function calls, for mine. - A. Bryant Nichols Jr. 
+
+Using the Code
+You can either open my solution file, and modify the properties to link to your matlab directory, or follow these steps: 
+
+1 - Create a new C++ Win32 console application. 
+2 - Add mexversion.rc from the MATLAB include directory, matlab\extern\include, to the project. 
+3 - Create a .def file with the following text, and add it to the Solution. 
+    Note: Change myFileName to yours.  
+			LIBRARY myFileName
+			EXPORTS mexFunction
+			
+4 - Under C/C++ General Additional Include Directories, add matlab\extern\include. 
+5 - Under C/C++ Preprocessor properties, add MATLAB_MEX_FILE as a preprocessor definition.  
+6 - Under Linker General Output File, change to .mexw32  
+7 - Under Linker General Additional Library Directories, add matlab\extern\lib\win32\microsoft 
+8 - Under Linker Input Additional Dependencies, add libmx.lib, libmex.lib, and libmat.lib as additional dependencies. 
+9 - Under Linker Input Module Definition File, add the (.def) file you created.  
+10- Under General Configuration Type, choose .dll. 
+11- Add more links to includes and libraries that you will need for your program. In my case, I also added the \include and \lib dependencies for the laser gyroscope. 
+	The Code
+	
+	
+source: http://www.codeproject.com/KB/cpp/MatlabVS.aspx

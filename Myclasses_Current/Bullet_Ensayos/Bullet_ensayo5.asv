@@ -1,0 +1,38 @@
+%% adding path to the matlab path
+addpath F:\work\Myclasses_Current
+
+%% creating world with default ground object
+world = PhysicsWorld;
+world.NumberOfSimulationSteps=1500;
+
+%% creating object to be added to the world
+l(1)=Link('Prototype1_Index_Link1_1DOF');
+l(1).reducePatch(0.2);
+l(1).Quaternion=Solid.transform2quatern(Solid.rotation('x',-pi/3));
+l(1).Position=[0 0 10]';
+
+l(2)=Link('Prototype1_Index_Link1_1DOF');
+l(2).reducePatch(0.2);
+l(2).Quaternion=Solid.transform2quatern(Solid.rotation('x',-pi/2));
+l(2).Position=[0 -4 12]';
+
+l(3)=Link('Prototype1_Index_Link1_1DOF');
+l(3).reducePatch(0.2);
+l(3).Quaternion=Solid.transform2quatern(Solid.rotation('x',-pi/2));
+l(3).Position=[0 4 12]';
+
+%% adding object to the world
+world.addBody(l(1));
+world.addBody(l(2));
+world.addBody(l(3));
+
+%% initializing simulation
+world';
+
+world.initializeSimulation;
+
+%% running simulation
+world.runSimulation;
+
+%% closing simulation]
+world.closeSimulation;

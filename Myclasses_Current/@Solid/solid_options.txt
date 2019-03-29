@@ -1,0 +1,23 @@
+
+-----------------Solid Model Registration ------------------  
+    Select one of the following options 
+                GENERAL ATTRIBUTES
+        1 - (required) Enter Model Name
+        2 - (optional) Enter Tag  
+
+                GEOMETRIC ATTRIBUTES
+        3 - (required) Select Model file            
+        4 - (optional) Set new Reference Frame        
+        5 - (optional) Reduce Patch number 
+        6 - (optional) Set Color
+
+                MASS ATTRIBUTES
+        7 - (optional) Enter Mass
+        8 - (optional) Enter Inertia Tensor
+        9 - (optional) Enter Center of gravity
+
+        10 - SHOW CURRENT DATA
+        11 - REGISTER
+        12 - INSTRUCTIONS
+        0 -  ABORT SESSION WITHOUT SAVING   
+    

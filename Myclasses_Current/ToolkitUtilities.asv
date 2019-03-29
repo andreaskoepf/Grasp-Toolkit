@@ -1,0 +1,21 @@
+classdef ToolkitUtilities < handle 
+    
+  
+    properties (Constant=true)
+        Root=getRootPath
+    end
+    
+    
+    
+    methods(Static=true)
+        function p=get
+            
+    end  
+    
+end
+
+ function r=getRootPath
+            pathFiles=what('MyClasses');
+            r=pathFiles.path;
+ end
+        

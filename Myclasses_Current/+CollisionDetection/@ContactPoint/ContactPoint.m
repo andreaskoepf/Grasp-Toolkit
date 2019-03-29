@@ -1,0 +1,280 @@
+classdef ContactPoint < handle
+% ContactPoint
+        %   Generates a contact point object with the following
+        %   properties.
+        %       - ContactPointOnA           : 3 x 1 double
+        %       - ContactPointOnB           : 3 x 1 double
+        %       - ContactPointWorldOnA      : 3 x 1 double
+        %       - ContactPointWorldOnB      : 3 x 1 double
+        %       - ContactNormalOnA          : 3 x 1 double
+        %       - ContactNormalOnB          : 3 x 1 double
+        %       - InterpenetrationDistance  : 1 x 1 double
+        %       - CombinedFriction          : 1 x 1 | 1 x 2 double 
+        %       - FrictionModel             : 1 x c char
+        %               Contains the definition of the friction model
+        %               which are: 
+        %
+        %               FPC      :   Frictionless point contact.
+        %               PCF     :   Point contact with friction.
+        %               SFCe    :   Elliptical soft finger contact.
+        %               SFCl    :   Linear soft finger contact.
+        %   The only properties that can be modified once the object is
+        %   created are "CombinedFriction" and "FrictionModel"
+        %
+        %   cp = ContactPoint(inputStruct)
+        %   Inputs:
+        %       inputStruct : 1 x p  structure containing the same
+        %       fields as the contact point object.
+            
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Partially Public Properties
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties (SetAccess = protected)
+        
+        ContactPointOnA
+        ContactPointOnB
+        ContactPointWorldOnA
+        ContactPointWorldOnB
+        ContactNormalOnA
+        ContactNormalOnB
+        ContactNormalWorldOnA
+        ContactNormalWorldOnB
+        InterpenetrationDistance
+        
+        
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Full Public Properties 
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties
+        
+        CombinedFriction = 0.5;
+        FrictionModel = 'PCF';
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Constructor 
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function cp = ContactPoint(varargin)
+            % ContactPoint
+            %   Generates a contact point object with the following
+            %   properties.
+            %       - ContactPointOnA           : 3 x 1 double
+            %       - ContactPointOnB           : 3 x 1 double
+            %       - ContactPointWorldOnA      : 3 x 1 double
+            %       - ContactPointWorldOnB      : 3 x 1 double
+            %       - ContactNormalOnA          : 3 x 1 double
+            %       - ContactNormalOnB          : 3 x 1 double
+            %       - InterpenetrationDistance  : 1 x 1 double
+            %       - CombinedFriction          : 1 x 1 | 1 x 2 double 
+            %       - FrictionModel             : 1 x c char
+            %               Contains the definition of the friction model
+            %               which are: 
+            %
+            %               FPC      :   Frictionless point contact.
+            %               PCF     :   Point contact with friction.
+            %               SFCe    :   Elliptical soft finger contact.
+            %               SFCl    :   Linear soft finger contact.
+            %   The only properties that can be modified once the object is
+            %   created are "CombinedFriction" and "FrictionModel"
+            %
+            %   cp = ContactPoint(inputStruct)
+            %   Inputs:
+            %       inputStruct : 1 x p  structure containing the same
+            %       fields as the contact point object.
+            
+            switch nargin
+                
+                case 0
+                    
+                    return;
+                    
+                case 1
+                    
+                    if ~isa(varargin{1},'struct')
+                    
+                        error('must provide a 1 x p  structure array')
+                    
+                    end
+                    
+                otherwise
+                    
+                    error('too many input arguments');
+                    
+            end
+                    
+            
+            try
+                
+                fieldNames = fieldnames(varargin{1});
+                
+                for n = 1:size(varargin);
+                    
+                    inputStruct = varargin{n};
+                    
+                    for m = 1:length(fieldNames);                 
+                        
+                        cp(n).(fieldNames{m}) = inputStruct.(fieldNames{m});
+                        
+                    end
+                    
+                end
+                
+            catch
+                
+                error('input structure does not have the corresponding fields')
+                
+            end
+            
+        end
+        
+    end
+    
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Property Set Methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function set.CombinedFriction(cp,f)
+            
+            cp.CombinedFriction = f(1);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function set.FrictionModel(cp,fm)
+        %   ContactPoint.FrictionModel(fm)   
+        %       Sets the value for the friction model
+        %
+        %   Inputs:
+        %       fm: 1 x c char array containing one of the following
+        %       friction models:
+        %           FPC      :   Frictionless point contact.
+        %           PCF     :   Point contact with friction.
+        %           SFCe    :   Elliptical soft finger contact.
+        %           SFCl    :   Linear soft finger contact.
+        %
+            options = {'FPC','PCF','SFCe','SFCl'};
+            
+            isValidOption = strcmpi(fm,options);
+            
+            if any(isValidOption)
+                
+                cp.FrictionModel = options{logical(isValidOption)};
+                
+            else
+                
+                error([fm ' is not a valid friction model. See help ContactPoint.FrictionModel'])
+                
+            end
+            
+        end
+        
+    end
+    
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Grasp Utilities related methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function ws = createWrenchSet(cp,resolution)
+            
+            ws = WrenchSpace.WrenchSet(cp);
+            ws.setResolution(resolution);
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Global Utilities
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods(Static)
+        
+        function filteredCpArray = filterContactPoints(cpArray)
+            % filters contact points that may be close to each other
+            
+            if length(cpArray) == 1
+                
+                filteredCpArray = CollisionDetection.ContactPoint(cpArray);
+                return;
+                
+            end
+            
+            
+            numFilteredContactPoints = 1; %
+            currentContactPointIndex = 1;
+            totalNumContactPoints = length(cpArray);
+            
+            % creating contact point to compare against all other contact
+            % points
+            currentContactPoint = cpArray(currentContactPointIndex);
+            contactPointCollector = containers.Map(1,currentContactPoint);
+            tolerance = 2*abs(currentContactPoint.InterpenetrationDistance);
+            
+            if tolerance < 0.4
+                
+                tolerance = 0.4;
+                
+            end
+            
+            v1 = currentContactPoint.ContactPointOnA;
+            
+            while totalNumContactPoints > currentContactPointIndex;
+                
+                currentContactPointIndex = currentContactPointIndex + 1;
+                nextContactPoint = cpArray(currentContactPointIndex);
+                
+                % computing the vector between the contact points
+                v2 = nextContactPoint.ContactPointOnA;
+                
+                if tolerance < norm(v1 - v2)
+                    % contact points are far enough to be considered separate
+                    % contact points
+                    
+                    currentContactPoint = nextContactPoint;
+                    tolerance = 2*currentContactPoint.InterpenetrationDistance;
+                    
+                    if tolerance < 0.4
+                        
+                        tolerance = 0.4;
+                        
+                    end
+                    
+                    v1 = currentContactPoint.ContactPointOnA;
+                    numFilteredContactPoints = numFilteredContactPoints + 1;
+                    contactPointCollector(numFilteredContactPoints) = currentContactPoint;
+                    
+                end
+                
+            end
+            
+            % creating contact point objects
+            filteredCpArray(contactPointCollector.length) = CollisionDetection.ContactPoint;
+            for n = 1:contactPointCollector.length;
+                
+                filteredCpArray(n) = CollisionDetection.ContactPoint(contactPointCollector(n));
+                
+            end
+        
+        end
+        
+    end
+    
+end
+            
+            
+                
+                
+        
+        

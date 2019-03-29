@@ -1,0 +1,366 @@
+% creating hand and object
+hand = Hand('Prototype1');
+obj = Box([4 20 4]);
+
+%%
+figure(2);
+hand.Color = 'y';
+hand.Frame = Geometry.translation('z',4);
+obj.Frame = Geometry.translation('zx',[-2 8]);
+hand';
+obj';
+
+%% using ccd to find contact pose between the palm and object
+palm = Solid(hand.PalmObject);
+palmStartTransform = palm.Frame;
+palmEndTransform = Geometry.translation('z',-10);
+%palm.setPhysicsHandle;
+%obj.setPhysicsHandle;
+
+
+ccd = CollisionDetection.ContinuousCollisionDetection;
+%ccd.createMexInstance;
+ccd.setObjectA(palm,eye(4));
+ccd.setObjectB(obj,eye(4));
+%%
+pairResult = ccd.performCCDPairTest(palmStartTransform,palmEndTransform,...
+    obj.Frame,obj.Frame);
+
+disp(pairResult)
+
+%palm.destroyPhysicsHandle
+
+%% placing hand at contact pose
+hand.Frame = pairResult.TOC_TransformA;
+hand';
+obj';
+
+%% zeroing out all joints
+for n = 1:length(hand.Fingers)
+    
+    hand.Fingers(n).JointValues = zeros(1,hand.Fingers(n).DOF);
+   
+end
+
+hand';
+
+%% creating joint profiles
+numSteps = 4;
+numFingers = length(hand.Fingers);
+jointProfiles(numFingers) = MotionProfile.JointProfile;
+
+searchIndices = [1 2 5 4 3];
+
+for n = searchIndices
+    
+    jc1 = MotionProfile.JointConfiguration(hand.Fingers(n));
+    jc2 = MotionProfile.JointConfiguration(hand.Fingers(n));
+    
+    jc1.setJointValues(zeros(hand.Fingers(n).DOF,1));
+    jc2.setJointValues([0 pi/2 repmat(pi/2,1,hand.Fingers(n).DOF-2)]);
+    
+    jointProfiles(n) = MotionProfile.JointProfile(jc1,jc2);
+    jointProfiles(n).setNumSteps(numSteps);
+    
+end
+%%
+options.JointProfiles = jointProfiles;
+options.SearchIndices = searchIndices;
+%options.InitialContactPoints = [];
+options.InitialContactPoints = pairResult.ContactPoints;
+
+results = Grasp.findForceClosureGrasp(hand,obj,options);
+
+%% find optimum FC grasp  - Initializing variables
+
+indices = searchIndices;
+wrenchSpace = results.WrenchSpace;
+
+% storing collision group resuls
+
+CollisionGroupContainer = containers.Map(0,struct('field1',[],'field2',[]));
+
+for n = 1:length(results.CollisionGroupResults);
+    
+    CollisionGroupContainer(n) = results.CollisionGroupResults(n);
+    
+end
+
+% initializing variables
+continueSearchingOptimumGrasp = true;
+
+currentNumberOfFingersSearched = length(results.SearchedIndices);
+%currentNumberOfPrimitiveWrenches = 0;
+frictionModel = 'PCF';
+friction = 0.5;
+resolution = 8;
+numWrenchSpaceDimensions = 6;
+
+% creating test hyperplane container
+TestHyperplaneContainer = containers.Map(0,struct('field1',[],'field2',[]));
+TestHyperplaneContainer.remove(0);
+
+autoGenerateJointLimits = false;
+
+environment = results.Environment;
+
+tolerance = 1e-6;
+
+
+currentFingerIndex = indices(currentNumberOfFingersSearched+1);
+while continueSearchingOptimumGrasp
+    
+    
+    % STEP 2 --------------------------------------------------------------
+    fingerObj = hand.Fingers(currentFingerIndex);
+    
+    if autoGenerateJointLimits
+        
+        jointLimits = fingerObj.JointLimits;
+        jointSteps = 10*ones(fingerObj.DOF,1);
+        
+    else
+        
+        jointConf= jointProfiles(currentFingerIndex).JointConfigurations;
+        jointLimits = [jointConf(1).JointValues jointConf(2).JointValues];
+        jointSteps = repmat(jointProfiles(currentFingerIndex).NumSteps,fingerObj.DOF,1);
+        
+    end
+    
+    ccdOptions.Environment = environment;
+    ccdOptions.JointLimitValues = jointLimits;
+    ccdOptions.JointSteps = jointSteps;
+    
+    fprintf('\nFinding Optimum FC Grasp: Step - 3:  Calling CCD on %ith finger\n',currentFingerIndex)
+    collisionGroupResult = CollisionDetection.ContinuousCollisionDetection.performCCDArticulatedBodyTest(...
+        fingerObj,obj,ccdOptions);
+    
+    % if no valid collisions were found then advance to the next iteration
+    if length(collisionGroupResult) == 1
+        
+        if collisionGroupResult.NumCollisionPairs == 0
+            
+            currentNumberOfFingersSearched = currentNumberOfFingersSearched + 1;
+            
+            
+            if currentNumberOfFingersSearched == length(hand.Fingers)
+
+                continueSearchingForceClosure = false;
+
+            else
+                
+                currentFingerIndex = indices(currentNumberOfFingersSearched + 1);
+                
+            end
+            
+            fprintf('\nFound 0 collision groups for the %ith finger, moving to next iterations\n',currentFingerIndex)
+            
+            % adding objects to the environment
+            fingerObj.JointValues = jointLimits(:,1); % may produce an invalid configuration if there is interpenetration
+            fingerObj.updateAllFrames;
+            
+            %CollisionGroupContainer(currentNumberOfFingersSearched+1) = collisionGroupResult(selectedWrenchGroupIndex);
+            
+            for n = 1:length(fingerObj.Links);
+                
+                if isEnvironmentEmpty
+                    
+                    environment = Solid(fingerObj.Links(n));
+                    isEnvironmentEmpty = false;
+                    
+                else
+                    
+                    environment = environment + fingerObj.Links(n);
+                    
+                end
+                
+            end
+            
+            continue
+            
+        end
+        
+    end
+    
+    % STEP 3 --------------------------------------------------------------
+    
+    wrenchSpace.resetCurrentFacetIndex;
+    
+    % retrieving hyperplane corresponding to the closest facet in the
+    % wrench space
+    testHyperplane = wrenchSpace.getCurrentFacetHyperplane;
+    
+    
+    continueSearchingOptimumSet = true;
+    collisionGroupsIndices = 1:length(collisionGroupResult);
+    collisionGroupsInPositiveHalfSpace = false(1,length(collisionGroupResult));
+    collisionGroupsMaxDistance = zeros(1,length(collisionGroupResult));
+    maxDistance = 0;
+    remainingCollisionGroupsIndices = collisionGroupsIndices;
+    
+    while continueSearchingOptimumSet
+        
+        for n = remainingCollisionGroupsIndices;
+            
+            wrenchSets = collisionGroupResult(n).createWrenchSet;
+            
+            for m = 1:length(wrenchSets)
+                
+                wSet = wrenchSets(m);
+                wSet.setResolution(m);
+                
+                supportPoint = wSet.computeSupportPoint(testHyperplane.getNormalVector);
+                
+                if testHyperplane.isInPositiveHalfSpace(supportPoint)
+                    
+                    collisionGroupsInPositiveHalfSpace(n) = true;
+                    
+                    distance = testHyperplane.computeAbsDistanceToPoint(supportPoint);
+                    
+                    if distance > collisionGroupsMaxDistance(n)
+                        
+                        collisionGroupsMaxDistance(n) = distance;
+                        
+                    end
+
+                
+                end
+            
+            end
+            
+        end
+        
+        if any(collisionGroupsInPositiveHalfSpace)
+            
+            % find next closest distinc hyperplane
+            while(testHyperplane.isEquivalentHyperplane(wrenchSpace.getNextFacetHyperplane))
+                
+            end
+            
+            testHyperplane = wrenchSpace.getCurrentFacetHyperplane;
+            
+            remainingCollisionGroupsIndices = collisionGroupsIndices(collisionGroupsInPositiveHalfSpace);
+            
+            [maxDistance,selectedGroupIndex] = max(collisionGroupsMaxDistance);
+            
+            % reseting tracking variables
+            collisionGroupsMaxDistance = zeros(1,length(collisionGroupResult));
+            collisionGroupsInPositiveHalfSpace = false(1,length(collisionGroupResult));
+            
+        else % there are no more collision groups that can increase the wrench space 
+            
+            continueSearchingOptimumSet = false;
+            
+            if maxDistance == 0 % no collision group increases the wrench space
+                
+                
+                selectedGroupIndex = 1;
+                
+            else
+                
+                selectedGroupIndex = selectedGroupIndex(1);
+                
+            end
+            
+        end
+        
+    end
+                
+                
+    % STEP 6 --------------------------------------------------------------            
+    selectedWrenchSets = collisionGroupResult(selectedGroupIndex).createWrenchSet;
+    
+    CollisionGroupContainer(currentNumberOfFingersSearched+1) = collisionGroupResult(selectedGroupIndex);
+    
+    % adding wrench sets to wrench space
+    for n = 1:length(selectedWrenchSets)
+        
+        fprintf('\nadding wrench set to wrench space\n')
+        selectedWrenchSets(n).setResolution(resolution);
+        wrenchSpace.addWrenchSet(selectedWrenchSets(n));
+        
+    end
+    
+    % updating finger obj
+    jc = collisionGroupResult(selectedGroupIndex).createJointConfiguration;
+    fingerObj.JointValues = jc.JointValues;
+    fingerObj.updateAllFrames;
+    
+    for n = 1:length(fingerObj.Links);
+        
+        if isEnvironmentEmpty
+            
+            environment = Solid(fingerObj.Links(n));
+            isEnvironmentEmpty = false;
+            
+        else
+            
+            environment = environment + fingerObj.Links(n);
+            
+        end
+        
+    end
+    
+    currentNumberOfFingersSearched = currentNumberOfFingersSearched + 1;
+    
+    
+    if currentNumberOfFingersSearched == length(hand.Fingers)
+        
+        continueSearchingOptimumGrasp = false;
+        
+    else
+        
+        currentFingerIndex = indices(currentNumberOfFingersSearched + 1);
+        
+    end
+    
+end
+
+% gathering results
+
+if CollisionGroupContainer.length == 0
+    
+    collisionGroupResults = CollisionDetection.CollisionGroupResult;
+    
+else
+   
+    collisionGroupResults(length(CollisionGroupContainer)) = CollisionDetection.CollisionGroupResult;
+    keys = CollisionGroupContainer.keys;
+    for n = 1:length(CollisionGroupContainer);
+        
+        collisionGroupResults(n) = CollisionGroupContainer(keys{n});
+        
+        
+    end
+    
+end
+
+
+
+
+                
+                
+                
+                
+            
+            
+            
+                
+                
+        
+        
+        
+            
+        
+                    
+                    
+        
+        
+    
+
+
+
+
+    
+    
+    

@@ -1,0 +1,10 @@
+s3(1)=Solid('handSpring - SW3dPS-Hand 2_Finger Assm-7 SW3dPS-Hand 2_Finger tip-2');
+s3(3)=Solid('handSpring - SW3dPS-Hand 2_Finger Assm-7 SW3dPS-Hand 2_spring joint-2');
+s3(4)=Solid('handSpring - SW3dPS-Hand 2_Finger Assm-7 SW3dPS-Hand 2_spring joint 2-2');
+s3(5)=Solid('handSpring - SW3dPS-Hand 2_Finger Assm-7 SW3dPS-Hand 2_Finger Bone-4');
+s3(6)=Solid('handSpring - SW3dPS-Hand 2_Finger Assm-7 SW3dPS-Hand 2_Finger Bone-3');
+s3(7)=Solid('handSpring - SW3dPS-Hand 2_Finger Assm-7 SW3dPS-Hand 2_spring joint-3');
+s3(1).Color=[0.1 0.2 0.3];
+s3(5).Color=[0.1 0.2 0.3];
+s3(6).Color=[0.1 0.2 0.3];
+s3';

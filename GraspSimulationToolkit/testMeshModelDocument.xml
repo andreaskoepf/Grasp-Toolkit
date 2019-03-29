@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testMeshModelDocument>
+   <modelColor> [0.2 0.1 0.8]</modelColor>
+   <modelLocalTransform>eye(4)</modelLocalTransform>
+   <modelName>'meshmodel28'</modelName>
+</testMeshModelDocument>

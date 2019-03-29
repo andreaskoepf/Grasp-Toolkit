@@ -1,0 +1,867 @@
+classdef ContinuousCollisionDetection < handle
+    
+    properties(SetAccess = protected)
+        mObjectA
+        mObjectB
+        %mObjectAMexHandle=uint32(0);;
+        %mObjectBMexHandle= uint32(0);
+        
+        mMexHandle = uint32(0);
+        
+        %mMexClassID = int32(4);
+        
+        mIsMexInstanceValid = false;        
+        
+        
+    end
+    
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Static Properties
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(Constant = true)
+        CCDMethodIndexMap = CollisionDetection.ContinuousCollisionDetection.getMethodIndexMap; % it returns a container with
+                                               % with the corresponding char
+                                               % integer pairs
+                                               
+        sMexFunctionHandle = @MexFiles.ContinuousCollisionDetectionC2A;                                       
+    end
+    
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Collision Flags
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(Constant = true)
+        
+        COLLISION_FOUND = int32(-1);  % collision found at t = 0
+        COLLISION_FREE = int32(0); % no collision was found
+        TOC_FOUND = int32(1); % toc found
+        
+    end
+    
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % protecded class methods
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods(Static = true,Access = protected)
+        function map = getMethodIndexMap
+            map = containers.Map('Constructor',int32(0));
+            map('setObjectA') = int32(1);
+            map('setObjectB') = int32(2);
+            map('performCCDTest') = int32(3);
+            map('setNumIterations') = int32(4);
+            map('computeContactPoints') = int32(5);
+            map('Destructor') = int32(-1);
+            
+        end
+        
+    end
+    
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % protected class methods
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods(Static = true)
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function collisionGroupResults = performCCDArticulatedBodyTest(articulatedBody,obj,varargin)  
+            %   collisionGroupResults =
+            %   performCCDArticulatedBodyTest(articulatedBody,obj)
+            %
+            %   collisionGroupResults =
+            %   performCCDArticulatedBodyTest(articulatedBody,obj,options)
+            %
+            %       optional arguments must be passed in a structure array
+            %       The fields in the optional input structure array must be as
+            %       follow:
+            %           Environment: 1 x 1 Solid
+            %           JointLimitValues: n x 2 joint limit values where n is equal
+            %               to the DOF of the articulated body
+            %           JointSteps: n x 1 number of steps to iterate where n is
+            %               equal to the DOF of the articulated body.
+            %   
+            
+            import CollisionDetection.* 
+            
+            switch nargin
+                
+                case 2
+                    
+                    % using default data
+                    usingEnvironment = false;
+                    
+                    % storing joint Limits
+                    jointLimits = containers.Map(0,[1 1 1]);
+                    jointSteps = 10;
+
+                    numLinks = length(articulatedBody.Links);
+                    
+                    % populating joint limits container
+                    for n = 1:numLinks;
+                        jointLimits(n) = [articulatedBody.Links(n).JointLimits ...
+                            repmat(jointSteps,articulatedBody.DOF,1)];
+                    end
+                    
+                    
+                case 3
+                    
+                    options = varargin{1};
+                    
+                    if isempty(options.Environment)
+                        
+                        usingEnvironment = false;
+                        environment = [];
+                        
+                    else
+                        
+                        usingEnvironment = true;
+                        environment = options.Environment;
+                        
+                        if ~isa(environment,'Solid')
+                            
+                            error('Enviroment option must be an instance of the Solid Class')
+                            
+                        end
+                        
+                    end
+                    
+                    % storing joint Limits
+                    jointLimits = containers.Map(0,[1 1 1]);
+                    
+                    
+                    jointLimitValues = options.JointLimitValues;
+                    jointSteps = options.JointSteps;
+                    
+                    numLinks = length(articulatedBody.Links);
+                    lastAccessed = 0;
+                    % populating joint limits container
+                    for n = 1:numLinks;
+                        
+                        jointLimits(n) = [jointLimitValues(lastAccessed+1:lastAccessed+articulatedBody.Links(n).DOF,:)...
+                            jointSteps(lastAccessed+1:lastAccessed+articulatedBody.Links(n).DOF,:)];
+                        lastAccessed = lastAccessed+articulatedBody.Links(n).DOF;
+                        
+                        %disp(jointLimits(n))
+                        
+                    end
+                    
+                otherwise
+                    
+                    error('incorrect number of input arguments')
+                    
+            end
+                    
+                    
+            % setting all joint values to zero
+            articulatedBody.JointValues = zeros(1,articulatedBody.DOF);
+            
+            % intantiating mex objects
+            %articulatedBody.setPhysicsHandle;
+            %obj.setPhysicsHandle;
+            
+            % retrieving links
+            linkObjects = articulatedBody.Links;
+                        
+            % creating viewing window
+            %figure(1)
+            %axis([-8 8 -8 8 -6 10])
+            %articulatedBody';
+            %obj';
+                        
+            % declaring tracking variables
+            TestNo = int32(1);
+            
+            numLinks = size(articulatedBody.Links,2);  % number of links          
+
+            
+            % creating result containter.  This container will be used to
+            % store all results that contain at least one valid collision
+            %dummyStruct = struct('field1','field2');
+            testResultMap = containers.Map(0,struct('field1',[],'field2',[]));
+            CCDResultMap = containers.Map(int32(0),struct('field1',[],'field2',[]));
+            CCDResultMap.remove(int32(0));
+            
+            % creating ccd objects
+            ccd(numLinks) = CollisionDetection.ContinuousCollisionDetection;
+            
+            if usingEnvironment
+                
+                ccdEnv(numLinks) = CollisionDetection.ContinuousCollisionDetection;
+                
+            end
+            
+            offsetTransform = zeros(4,4,numLinks);
+            for n = 1:numLinks;
+                %disp(n)
+                ccd(n)= CollisionDetection.ContinuousCollisionDetection;
+                %ccd(n).createMexInstance;
+                offsetTransform(:,:,n) = [eye(3) linkObjects(n).Transform(1:3,4);0 0 0 1];
+                ccd(n).setObjectA(linkObjects(n),offsetTransform(:,:,n));
+                ccd(n).setObjectB(obj,eye(4));
+                
+                if usingEnvironment
+                    
+                    ccdEnv(n) = CollisionDetection.ContinuousCollisionDetection;
+                    %ccdEnv(n).createMexInstance;
+                    ccdEnv(n).setObjectA(linkObjects(n),offsetTransform(:,:,n));
+                    ccdEnv(n).setObjectB(environment,eye(4));
+                    
+                end
+                
+            end
+            
+            % starting recursive search            
+            findContactPoints(1,1);
+            
+            % destroying ccd objects
+            for n = 1:numLinks;
+                
+                ccd(n).destroyMexInstance;
+                
+                if usingEnvironment
+                    
+                    ccdEnv(n).destroyMexInstance;
+                    
+                end
+                
+                
+            end
+            
+            % gathering data and converting to collision group result
+            % array
+            
+            if CCDResultMap.length == 0
+                
+                inputStruct.ArticulatedObject = articulatedBody;
+                inputStruct.TargetObject = obj;
+                inputStruct.NumCollisionPairs = 0;
+                inputStruct.CollisionPairResults = [];
+                collisionGroupResults = CollisionDetection.CollisionGroupResult(inputStruct);
+                
+            else
+                
+            
+                collisionGroupResults(CCDResultMap.length) = CollisionGroupResult;
+
+                for n = int32(1:CCDResultMap.length);                
+
+                    collisionGroupResults(n) = CCDResultMap(n);
+
+                end
+                
+            end
+            
+            
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            function collisionFlag = findContactPoints(i_,j_)
+                
+                import CollisionDetection.*
+                % nomeclature:
+                %   i_  : current link index
+                %   j_  : current joint index
+                
+                
+                % retrieving number of joints in link i_ th
+                %J = size(linkObjects(i_).JointValues,1);
+                J = linkObjects(i_).DOF;
+                
+                % retrieving joint angle limits
+                jointL = jointLimits(i_);
+                theta0 = jointL(j_,1);  % initial joint value
+                thetaf = jointL(j_,2);  % final joint value
+                thetaSteps = jointL(j_,3); % number of steps;
+                
+                
+                % if start and end joint values are very close to each
+                % other then do not iterated over all repeated values
+                if abs(thetaf - theta0)<1e-4
+                    
+                    thetaSteps = 0;
+                    
+                end
+                
+                % computing initial and final transforms corresponding to
+                % the j_ th joint going from theta0 to thetaf
+                jointValues =linkObjects(i_).JointValues;
+                jointValues(j_) = theta0;
+                linkObjects(i_).JointValues=jointValues;                
+                articulatedBody.updateAllFrames;
+                objectATransform0=linkObjects(i_).Frame;
+                
+                % updating graphics
+                %linkObjects(i_)';
+                %articulatedBody';
+                %pause(1);
+                
+                jointValues(j_) = thetaf;
+                linkObjects(i_).JointValues=jointValues;                
+                articulatedBody.updateAllFrames;
+                objectATransformf=linkObjects(i_).Frame;
+                
+                % updating graphics
+                %linkObjects(i_)';
+                %articulatedBody';
+                %pause(1);
+                
+                
+                objectBTransform0 = obj.Frame;
+                objectBTransformf = obj.Frame;
+                
+                
+                               
+                 
+                if usingEnvironment
+                    
+                    envTransform0 = environment.Frame;
+                    envTransformf = environment.Frame;
+                    
+                    envCollisionResult = ccdEnv(i_).performCCDPairTest(objectATransform0,objectATransformf,...
+                        envTransform0,envTransformf );
+                    
+                    envCollisionFlag = envCollisionResult.CollisionFlag;
+                    envTOC = envCollisionResult.TOC;
+                    
+                    switch envCollisionFlag
+                        
+                        case CollisionDetection.ContinuousCollisionDetection.COLLISION_FOUND % collision found at toc = 0
+                            
+                            % interference with the environment detected
+                            collisionFlag = CollisionDetection.ContinuousCollisionDetection.COLLISION_FOUND;
+                            
+                            return;
+                            
+                        case CollisionDetection.ContinuousCollisionDetection.COLLISION_FREE % collision free
+                            
+                            % no collision with the environment then
+                            % proceed
+                            collisionPairResult = ccd(i_).performCCDPairTest(objectATransform0,objectATransformf,...
+                                objectBTransform0,objectBTransformf);
+                            
+                            % extracting collision flag
+                            collisionFlag = collisionPairResult.CollisionFlag;
+                            
+                        case CollisionDetection.ContinuousCollisionDetection.TOC_FOUND
+                            
+                            % collision with the environment. test against
+                            % object
+                            
+                            collisionPairResult = ccd(i_).performCCDPairTest(objectATransform0,objectATransformf,...
+                                objectBTransform0,objectBTransformf);
+                            
+                            % determining which collision occurs first
+                            if collisionPairResult.TOC > envTOC
+                                
+                                collisionFlag = CollisionDetection.ContinuousCollisionDetection.COLLISION_FREE;
+                                
+                                % updating joint values
+                                theta_TOC = (thetaf - theta0)*envTOC + theta0;
+                        
+                                % updating joint limits
+                                thetaf = theta_TOC;
+
+                                % updating joint values
+                                jointValues(j_)=theta_TOC; 
+                                
+                            else
+                                
+                                collisionFlag = collisionPairResult.CollisionFlag;
+                                
+                            end
+                            
+                        otherwise
+                            
+                            collisionPairResult = ccd(i_).performCCDPairTest(objectATransform0,objectATransformf,...
+                                objectBTransform0,objectBTransformf);
+                            
+                            % extracting collision flag
+                            collisionFlag = collisionPairResult.CollisionFlag;
+                            
+                    end
+                    
+                    
+                    
+                    
+                else
+                    
+%                 [collisionFlag,ccdResult] = ccd(i_).mexPerformCCDTest(objectATransform0,objectATransformf,...
+%                     objectBTransform0,objectBTransformf); 
+                    
+                    % calling the continuous collision detection method
+                    collisionPairResult = ccd(i_).performCCDPairTest(objectATransform0,objectATransformf,...
+                        objectBTransform0,objectBTransformf);
+                    
+                    % extracting collision flag
+                    collisionFlag = collisionPairResult.CollisionFlag;
+                    
+                end
+                
+                % selecting collision test outcome
+                %fprintf('\nResulting collision Flag = %i\n',collisionFlag)
+                
+                switch collisionFlag
+                    
+                    case CollisionDetection.ContinuousCollisionDetection.COLLISION_FOUND % collision found at toc = 0
+                        
+                        %fprintf('\nCollision found at toc = 0 for link %i for joint %i\n',i_,j_)
+                        
+                        return;
+                        
+                    case CollisionDetection.ContinuousCollisionDetection.COLLISION_FREE % collision free
+                        
+                        %fprintf('\nCollision free for link %i for joint %i\n',i_,j_)
+                                                
+                        linkObjects(i_).JointValues = jointValues;                        
+                        
+                        
+                    case CollisionDetection.ContinuousCollisionDetection.TOC_FOUND % TOC found
+                        
+%                         fprintf('\nTOC found for link %i at TOC = %1.2f for joint %i\n',...
+%                             i_,collisionPairResult.TOC,j_);
+                        
+                        % computing theta at TOC
+                        theta_TOC = (thetaf - theta0)*collisionPairResult.TOC + theta0;
+                        
+                        % updating joint limits
+                        thetaf = theta_TOC;
+                        
+                        % updating joint values
+                        jointValues(j_)=theta_TOC;                        
+                        
+                        % setting joint values to TOC
+                        linkObjects(i_).JointValues = jointValues;
+                        articulatedBody.updateAllFrames;                        
+                        
+                        % updating graphics
+                        %articulatedBody';
+                        %obj';
+                        %pause(1);
+                        
+                    otherwise
+                        %fprintf('\nUnknown flag was passed collision Flag = %i \n',collsionFlag)
+                        
+                        return;
+                        
+                end
+                
+                % storing additional results
+                collisionPairResult.TOC_JointValues = jointValues;
+                collisionPairResult.TestIndex = TestNo;
+                %testCounter = testCounter + 1;
+                %collisionPairResult.TestIndex = testCounter;
+                testResultMap(i_) = collisionPairResult;                
+                
+                index = 1;
+                
+                % setting collision flag of next body to collision free
+                collisionFlagNext = CollisionDetection.ContinuousCollisionDetection.COLLISION_FREE;
+                
+                % iterating over all values of theta from theta0 to thetaf
+                for theta = linspace(thetaf,theta0,thetaSteps);
+                    
+                    if index == 1
+                        
+                        % skips first ccd test
+                        %fprintf('\nEntered first iteration in Link %i joint %i\n',i_,j_)
+                        
+                        
+                    else
+                        
+                        % updating collision flag
+                        %collisionFlag = ContinuousCollisionDetection.COLLISION_FREE;
+                        
+                        % create new result structure with updated joint data
+                        jointValues(j_) = theta;
+                        linkObjects(i_).JointValues = jointValues;
+                        articulatedBody.updateAllFrames;
+                        
+                        % creating temporary collision pair result object
+                        % with no contact points.  Only the first iteration
+                        % contains contact points since theta corresponds
+                        % to the joint value at TOC
+                        cpResult = CollisionPairResult;
+                        
+                        cpResult.TOC = 1;
+                        cpResult.ObjectA = linkObjects(i_);
+                        cpResult.ObjectB = obj;
+                        cpResult.TOC_TransformA = linkObjects(i_).Frame;
+                        cpResult.TOC_TransformB = obj.Frame;
+                        cpResult.TOC_JointValues = jointValues;
+                        cpResult.TestIndex = TestNo;
+                        
+                        % store current result structure in container map
+                        testResultMap(i_) = cpResult;
+                        
+                    end
+                    
+                    % updating graphics
+                    %articulatedBody';
+                    %pause(1);
+                    
+                    % determining if recursion continues
+                    %fprintf('\nLink %i current joint index %i at \n',i_,j_)
+                    if j_ ~= J % use the next joint and perform ccd test
+                        
+                        collisionFlagNext = findContactPoints(i_,j_+1);
+                        
+                    else % all joints have been used 
+                        
+                        if i_ ~= numLinks % advance to the first joint of the next link
+                            
+                            collisionFlagNext = findContactPoints(i_+1,1);
+                            
+                        else % all links and joints have been tested
+                            
+                            % this case is only valid when the last joint of the
+                            % last link is reached.
+                            
+%                             fprintf(['\nLast joint of the last link reached, exiting loop'...
+%                                 '\nindex value = %i\n'],index)
+                            break;
+                            
+                        end                 
+                        
+                    end
+                    
+                    % combine both collision flags.  This results in the
+                    % collision flags that have been obtained from all
+                    % recursive calls to the findContactPoints local
+                    % function.
+                    
+                    % terminate iteration if no collision is detected by the
+                    % next link.
+                    if collisionFlagNext == CollisionDetection.ContinuousCollisionDetection.COLLISION_FREE
+                        
+%                         fprintf('\nNo further collisions occur, link %i joint %i breaking loop\n',...
+%                             i_,j_)
+                        
+                        collisionFlag = collisionFlag||collisionFlagNext;
+                        
+                        if index == 1 % this value corresponds to the first joint value where there could already be a contact
+                            
+                            % break loop.  If there is a valid collision of
+                            % the i_th link at the first iteration then
+                            % the result will be saved by the commands that
+                            % follow the loop.
+                            break;
+                            
+                        else % this corresponds to any joint value but one where there is contact
+                            
+                            % no valid collisions for the next link or for
+                            % the current link i_.  No results are saved
+                            % and the recursion returns to the calling
+                            % function.
+                            return;
+                            
+                        end
+                        
+                    end
+                    
+                    index = index + 1;
+                    
+                end
+                
+                % storing result.  This section will be executed by the
+                % last link that registers a valid collision test.
+                if (collisionFlagNext == CollisionDetection.ContinuousCollisionDetection.COLLISION_FREE && ...
+                        collisionFlag == CollisionDetection.ContinuousCollisionDetection.TOC_FOUND)
+                    
+                    % creating new collision group result Object
+                    %structs = cell(1,numLinks);
+                    collisionPairs(numLinks) = CollisionPairResult;
+                    %indices = cell(1,numLinks);
+                    
+                    %disp(testResultMap)
+                    for n2 = 1:numLinks;
+                        
+                        collisionPairs(n2) = testResultMap(n2);
+                        %indices{n2} = n2;
+                        
+                    end
+                    
+                    %newResultMap = containers.Map(indices,structs);
+                    inputStruct.ArticulatedObject = articulatedBody;
+                    inputStruct.TargetObject = obj;
+                    inputStruct.NumCollisionPairs = numLinks;
+                    inputStruct.CollisionPairResults = collisionPairs;
+                    
+                    %disp(inputStruct);
+                    
+                    collisionGroupResult = CollisionGroupResult(inputStruct);
+                    
+                    %disp(collisionGroupResult)
+                    
+                    % adding new result map to result container map
+                    CCDResultMap(TestNo) = collisionGroupResult;
+                    
+%                     fprintf('\nLink %i joint %i storing data',i_,j_)
+%                     fprintf('\nIncreasing test number by one, Current Test no = %i\n',TestNo)
+                    TestNo = int32(1) + TestNo;
+                    
+                    
+                    %pause(1)
+                    % updating graphics
+                    articulatedBody.updateAllFrames;
+                    %articulatedBody.update;
+                    %obj.update;
+                    %drawnow;
+                    
+                end         
+                
+            end
+            
+        end
+        
+    end
+    
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Constructor and instance methods
+    %  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function ccdObj = ContinuousCollisionDetection
+            
+            %ccdObj.createMexInstance;
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setObjectA(ccdObj,solid,localTransform)
+            import CollisionDetection.*
+            
+            if nargin == 2
+                localTransform = eye(4);
+            else
+                if ~(all(size(localTransform)==[4 4]))
+                    error('must enter a 4 x 4 transform for the second argument')
+                end
+            end
+            
+            if ~ccdObj.mIsMexInstanceValid
+                
+                ccdObj.createMexInstance;
+                
+            end
+                
+                
+                
+            %cId=ccdObj.mMexClassID;
+            mId=ContinuousCollisionDetection.CCDMethodIndexMap('setObjectA');
+            
+            % input data
+            inputStruct.vertices = solid.Vertices(1:3,:)';
+            inputStruct.faces = solid.Faces;
+            
+            CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,ccdObj.mMexHandle,inputStruct,...
+                localTransform);
+%             ccdObj.mMexFunctionHandle(cId,mId,ccdObj.mMexHandle,solid.PhysicsHandle,...
+%                 localTransform);
+
+            ccdObj.mObjectA = solid;
+            %ccdObj.mObjectAMexHandle = solid.PhysicsHandle;           
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setObjectB(ccdObj,solid,localTransform)
+            import CollisionDetection.*
+            % checking that the third argument is valid
+            if nargin == 2
+                localTransform = eye(4);
+            else
+                if ~(all(size(localTransform)==[4 4]))
+                    error('must enter a 4 x 4 transform for the second argument')
+                end
+            end
+            
+            if ~ccdObj.mIsMexInstanceValid
+                
+                ccdObj.createMexInstance;
+                
+            end
+                
+                
+                
+            %cId=ccdObj.mMexClassID;
+            mId=ContinuousCollisionDetection.CCDMethodIndexMap('setObjectB');
+            
+            % input data
+            inputStruct.vertices = solid.Vertices(1:3,:)';
+            inputStruct.faces = solid.Faces;
+            
+            CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,ccdObj.mMexHandle,inputStruct,...
+                localTransform);
+%             ccdObj.mMexFunctionHandle(cId,mId,ccdObj.mMexHandle,solid.PhysicsHandle,...
+%                 localTransform);
+
+            ccdObj.mObjectB = solid;        
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function createMexInstance(ccdObj)
+            import CollisionDetection.*
+            
+            if ~ccdObj.mIsMexInstanceValid
+                %cId=ccdObj.mMexClassID;
+                mId=ContinuousCollisionDetection.CCDMethodIndexMap('Constructor');
+                %ccdObj.mMexHandle = ccdObj.mMexFunctionHandle(cId,mId,ccdObj);
+                
+                % creating input struct
+                inputStruct.Data = 'data';
+                
+                % calling mex function to instantiate object
+                ccdObj.mMexHandle = CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,inputStruct);                
+
+                ccdObj.mIsMexInstanceValid = true;
+            end
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function destroyMexInstance(ccdObj)
+            import CollisionDetection.*
+            
+            if ccdObj.mIsMexInstanceValid
+                
+                
+                try
+                    %cId=ccdObj.mMexClassID;
+                    mId=ContinuousCollisionDetection.CCDMethodIndexMap('Destructor');
+                    CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,ccdObj.mMexHandle);
+                    %ccdObj.mMexFunctionHandle(cId,mId,ccdObj.mMexHandle);
+                catch
+                    
+                end
+
+                ccdObj.mIsMexInstanceValid = false;
+                
+            end
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function [collisionFlag,ccdResultStruct] = mexPerformCCDTest(ccdObj,objATransform0,objATransformf,...
+                objBTransform0,objBTransformf)
+            import CollisionDetection.*
+            
+            if ~ccdObj.mIsMexInstanceValid
+                
+                ccdObj.createMexInstance;
+                
+            end
+            
+            if ccdObj.mIsMexInstanceValid
+                
+                %cId=ccdObj.mMexClassID;
+                mId=ContinuousCollisionDetection.CCDMethodIndexMap('performCCDTest');
+                
+                switch nargout
+                    
+                    case 1
+                        collisionFlag = CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,ccdObj.mMexHandle,objATransform0,objATransformf,...
+                            objBTransform0,objBTransformf);
+                        %                         collisionFlag = ccdObj.mMexFunctionHandle(cId,mId,ccdObj.mMexHandle,objATransform0,objATransformf,...
+                        %                                             objBTransform0,objBTransformf);
+                        
+                    case 2
+                        [collisionFlag,ccdResultStruct] = CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,ccdObj.mMexHandle,objATransform0,objATransformf,...
+                            objBTransform0,objBTransformf);
+                        %                         [collisionFlag,ccdResultStruct] = ccdObj.mMexFunctionHandle(cId,mId,ccdObj.mMexHandle,objATransform0,objATransformf,...
+                        %                                             objBTransform0,objBTransformf);
+                        
+                    otherwise
+                        [collisionFlag,ccdResultStruct] = CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,ccdObj.mMexHandle,objATransform0,objATransformf,...
+                            objBTransform0,objBTransformf);
+                        %                          [collisionFlag,ccdResultStruct] = ccdObj.mMexFunctionHandle(cId,mId,ccdObj.mMexHandle,objATransform0,objATransformf,...
+                        %                                             objBTransform0,objBTransformf);
+                        
+                end
+                
+                
+            else
+                
+                error('mex instance is invalid or has not been instantiated')
+                
+            end
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function collisionPairResult = performCCDPairTest(ccdObj,objATransform0,objATransformf,...
+                objBTransform0,objBTransformf)
+            
+            import CollisionDetection.*
+            
+            if ~ccdObj.mIsMexInstanceValid
+                
+                ccdObj.createMexInstance;
+                
+            end
+            
+            if ccdObj.mIsMexInstanceValid
+                
+                % class and method id
+                %cId = ccdObj.mMexClassID;
+                mId = ContinuousCollisionDetection.CCDMethodIndexMap('performCCDTest');
+                
+                % performming continuous collision detection test
+                [collisionFlag, ccdResultStruct] = CollisionDetection.ContinuousCollisionDetection.sMexFunctionHandle(mId,...
+                    ccdObj.mMexHandle,objATransform0,objATransformf,objBTransform0,objBTransformf);
+%                 [collisionFlag, ccdResultStruct] = ccdObj.mMexFunctionHandle(cId,mId,...
+%                     ccdObj.mMexHandle,objATransform0,objATransformf,objBTransform0,objBTransformf);
+                
+                
+%                 if collisionFlag == ContinuousCollisionDetection.TOC_FOUND
+%                     
+%                 % converting return struct to collision pair result object
+%                     contactPoints = CollisionDetection.ContactPoint.filterContactPoints(ccdResultStruct.ContactPoints);
+%                     ccdResultStruct.ContactPoints = contactPoints;
+%                     ccdResultStruct.NumContacts = length(contactPoints);
+%                     
+%                 end 
+                    
+                    
+                    ccdResultStruct.TestIndex = 0;
+                    ccdResultStruct.ObjectA = ccdObj.mObjectA;
+                    ccdResultStruct.ObjectB = ccdObj.mObjectB;
+                    
+                    %disp(ccdResultStruct)
+                    %disp(ccdResultStruct.ContactPoints(1));
+
+                    collisionPairResult = CollisionDetection.CollisionPairResult(ccdResultStruct);           
+                    
+                
+            else
+                
+                error('mex  instance is invalid or has not been instantiated')
+                
+            end
+            
+        end          
+       
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isMexInstanceValid(ccdObj)
+            
+            bool = ccdObj.mIsMexInstanceValid;
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function delete(ccdObj)
+            
+            ccdObj.destroyMexInstance;
+            
+        end
+        
+    end
+    
+end
+        
+
+                
+                
+                
+        
+            
+                                               
+                                               
+                                               
+                                               
+        

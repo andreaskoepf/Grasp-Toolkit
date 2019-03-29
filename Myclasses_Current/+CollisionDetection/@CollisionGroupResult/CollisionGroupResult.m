@@ -1,0 +1,183 @@
+classdef CollisionGroupResult < handle
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Partially Public Properties 
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(SetAccess = protected)
+        
+        ArticulatedObject
+        TargetObject
+        NumCollisionPairs
+        CollisionPairResults
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Constructor 
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function cg = CollisionGroupResult(varargin)
+            % CollisionGroupResult
+            %   Contains the results of a collision test between an articulated
+            %   body and and object.  It stores a CollisionPairResult
+            %   object for every for every collision test carried out
+            %   between link i and object.
+            %            
+            %
+            %   cp = CollisionGroupResult(inputStruct)
+            %   Inputs:
+            %       inputStruct : 1 x 1  structure containing the same
+            %       fields as the collision group result object.
+                        
+            
+            import CollisionDetection.*
+            switch nargin
+                case 0
+                    
+                    return
+                    
+                case 1
+                    
+                    if ~isa(varargin{1},'struct')
+                        
+                        error('must provide a 1 x 1  structure array')
+                        
+                    end
+                    
+                otherwise
+                    
+                    error('too many input arguments')
+                    
+            end
+            
+            
+            try
+                
+                fieldNames = fieldnames(varargin{1});  
+                inputStruct = varargin{1};
+                for n = 1:length(fieldNames);
+                    
+                    
+                    cg.(fieldNames{n}) = inputStruct.(fieldNames{n});
+                    
+                end                
+                
+            catch
+                
+                error('input structure does not have the corresponding fields')
+                
+            end
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Grasp Utilities related methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function ws = createWrenchSet(cgr,resolution)
+            
+            if nargin == 1 
+                
+                resolution  = 8;
+                
+            end
+            
+            
+            % counting total number of wrench sets
+            numWrenchSets = cgr.getNumContactPoints;
+            
+            ws(numWrenchSets) = WrenchSpace.WrenchSet;
+            
+            index = 1;
+            for n = 1:cgr.NumCollisionPairs;
+                
+                numContactPoints = cgr.CollisionPairResults(n).NumContacts;
+                
+                for m = 1:numContactPoints;
+                
+                    ws(index) = WrenchSpace.WrenchSet(cgr.CollisionPairResults(n).ContactPoints(m),resolution);                    
+                    index = index+1;
+                    
+                end                
+                
+            end     
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function cp = getContactPoints(cgr)
+            
+            % initializing contact point array
+            cp(cgr.getNumContactPoints) = CollisionDetection.ContactPoint;
+            
+            index = 0;
+            for n = 1:cgr.NumCollisionPairs;
+                
+                numContacts = cgr.CollisionPairResults(n).NumContacts;
+                
+                if numContacts == 0
+                    continue
+                end
+                
+                cp(index+1:index + numContacts) = cgr.CollisionPairResults(n).ContactPoints;
+                index = index + numContacts;
+                
+            end
+            
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function numContacts = getNumContactPoints(cgr)
+            
+            numContacts = 0;
+            for n = 1:cgr.NumCollisionPairs;
+                
+                numContacts = numContacts + cgr.CollisionPairResults(n).NumContacts;
+                
+            end
+            
+        end
+        
+        
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Joint Configuration Related Methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function jc = createJointConfiguration(cgr)
+            
+            jc = MotionProfile.JointConfiguration(cgr.ArticulatedObject);
+            
+            jointValues = zeros(jc.DOF,1);
+            
+            lastJointAccessed = 0;
+            for n = 1:jc.NumLinks
+                
+                jointValues(1+lastJointAccessed:lastJointAccessed + jc.DOFPerLink(n)) ...
+                    = cgr.CollisionPairResults(n).TOC_JointValues;
+                
+                lastJointAccessed = lastJointAccessed + jc.DOFPerLink(n);
+                
+            end
+            
+            jc.setJointValues(jointValues);
+            
+        end
+        
+    end
+        
+    
+end
+    
+    

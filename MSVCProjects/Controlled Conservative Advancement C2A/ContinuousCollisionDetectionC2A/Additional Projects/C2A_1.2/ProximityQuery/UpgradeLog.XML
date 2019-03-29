@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?><?xml-stylesheet type='text/xsl' href='_UpgradeReport_Files/UpgradeReport.xslt'?><UpgradeLog>
+<Properties><Property Name="Solution" Value="ProximityQuery">
+</Property><Property Name="Solution File" Value="E:\C2A_1.1\ProximityQuery\ProximityQuery.sln">
+</Property><Property Name="User Options File" Value="E:\C2A_1.1\ProximityQuery\ProximityQuery.suo">
+</Property><Property Name="Date" Value="2010年6月10日">
+</Property><Property Name="Time" Value="11:09">
+</Property></Properties><Event ErrorLevel="0" Project="" Source="ProximityQuery.sln" Description="File successfully backed up as E:\C2A_1.1\ProximityQuery\ProximityQuery.sln.old">
+</Event><Event ErrorLevel="0" Project="" Source="ProximityQuery.suo" Description="File successfully backed up as E:\C2A_1.1\ProximityQuery\ProximityQuery.suo.old">
+</Event><Event ErrorLevel="0" Project="CCDDemo" Source="CCDDemo\CCDDemo.vcproj" Description="Project upgraded successfully.">
+</Event><Event ErrorLevel="3" Project="CCDDemo" Source="CCDDemo\CCDDemo.vcproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="C2A" Source="C2A\build\C2A.vcproj" Description="Project upgraded successfully.">
+</Event><Event ErrorLevel="3" Project="C2A" Source="C2A\build\C2A.vcproj" Description="Converted">
+</Event><Event ErrorLevel="1" Project="PQP" Source="PQP_v1.3\PQP.vcproj" Description="This application has been updated to include settings related to the User Account Control (UAC) feature of Windows Vista. By default, when run on Windows Vista with UAC enabled, this application is marked to run with the same privileges as the process that launched it. This marking also disables the application from running with virtualization. You can change UAC related settings from the Property Pages of the project.">
+</Event><Event ErrorLevel="0" Project="PQP" Source="PQP_v1.3\PQP.vcproj" Description="Project file successfully backed up as 'E:\C2A_1.1\ProximityQuery\PQP_v1.3\PQP.vcproj.8.00.old'.">
+</Event><Event ErrorLevel="0" Project="PQP" Source="PQP_v1.3\PQP.vcproj" Description="Project upgraded successfully.">
+</Event><Event ErrorLevel="3" Project="PQP" Source="PQP_v1.3\PQP.vcproj" Description="Converted">
+</Event><Event ErrorLevel="0" Project="" Source="ProximityQuery.sln" Description="The solution file does not require conversion.">
+</Event><Event ErrorLevel="3" Project="" Source="ProximityQuery.sln" Description="No Conversion Required">
+</Event></UpgradeLog>

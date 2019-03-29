@@ -1,0 +1,8 @@
+Instructions
+        Select on of the following options to enter the corresponding data.
+        Once all the necessary information has been entered, select option 
+        "Proceed" in order to register and save new model data.  A model 
+        can only be successfully saved if all the options with the 
+        "required" tag located on the rigth hand side are completed.  The 
+        options with the "optional" tag can be left uncompleted and they
+        will set to predefined values.

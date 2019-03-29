@@ -1,0 +1,1013 @@
+classdef Mesh < BaseClasses.Node
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Mesh data dependent properties
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(Dependent = true, SetAccess = protected)
+        
+        mVertices
+        mFaces
+        mNumVertices
+        mNumFaces
+        
+    end  
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Mesh attributes
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(SetAccess = protected)
+        
+        % face and edge attributes
+        mIsFaceVisible = true;
+        mFaceColor = [0 0 1];
+        mFaceAlpha = 1; %transparency
+        
+        mIsEdgeVisible = true;
+        mEdgeColor = [0 0 1];
+        mEdgeAlpha = 1;
+        
+        % marker attributes
+        mIsMarkerVisible = false;
+        mMarkerType = '.';
+        mMarkerEdgeColor = [0 0 1];
+        mMarkerFaceColor = [0 0 1];
+        mMarkerSize = 6;
+        
+        mVisible = true;    
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Identification attributes
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties (SetAccess = protected)
+        
+        mGraphicsHandle = int32(-1);
+        mFigureHandle = int32(0);
+        mModelName = 'undefined';
+        mFileName = 'none';
+        mTag
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % constructor and initialization methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods 
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function m = Mesh(varargin)            
+            % this method should create a mesh object whether by loading an
+            % exiting model from file or by loading from a passed data
+            % structure
+            
+            if nargin == 0
+                
+                arg = 'PointMesh';
+                
+            else
+                
+                arg = varargin{1};
+                
+            end
+            
+            switch class(arg)
+                case 'char'
+                    
+                    m.loadFromModel(arg);
+                    
+                case 'struct'
+                    
+                    m.loadFromStruct(arg);
+                    
+                otherwise
+                    
+                    error('Invalid input argument type')
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function loadFromModel(m,modelName)
+            
+            m.loadFromStruct(Toolkit.loadModelData('Mesh',modelName,'ConstructionInfo'));
+            %GST.MeshData.loadMeshData(modelName);
+            
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function loadFromStruct(m,constructionInfoStruct)
+            
+            m.mScale = constructionInfoStruct.Scale;
+            m.mFaceColor = constructionInfoStruct.FaceColor;
+            m.mFaceAlpha = constructionInfoStruct.FaceAlpha;
+            m.mEdgeColor = constructionInfoStruct.EdgeColor;
+            m.mEdgeAlpha = constructionInfoStruct.EdgeAlpha;
+            m.mModelName = constructionInfoStruct.ModelName;
+            m.mFileName = constructionInfoStruct.FileName;
+            m.mTag = constructionInfoStruct.Tag;
+            
+            
+            
+            if ~Mesh.MeshData.isMeshLoaded(m.mModelName);
+                
+                Mesh.MeshData.loadMeshData(m.mModelName);
+                m.reduceMeshResolution(constructionInfoStruct.ResolutionReduction);
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function consInfo = getConstructionInfoStruct(m)
+            
+            consInfo = struct('Vertices',[],'Faces',[],'FaceColor',[],...
+                'Transform',[],'Scale',[],'FaceAlpha',[],'EdgeColor',[],'EdgeAlpha',...
+                [],'Visible',[],'ModelName',[],'FileName',[],'Tag',[]);
+            
+            consInfo.Vertices = m.mVertices;
+            consInfo.Faces = m.mFaces;
+            consInfo.Transform = m.getUnscaledLocalTransform;
+            consInfo.Scale = m.getScale;
+            consInfo.FaceColor = m.mFaceColor;
+            consInfo.FaceAlpha = m.mFaceAlpha;
+            consInfo.EdgeColor = m.mEdgeColor;
+            consInfo.EdgeAlpha = m.mEdgeAlpha;
+            consInfo.Visible = m.mVisible;
+            consInfo.ModelName = m.mModelName;
+            consInfo.FileName = m.mFileName;
+            consInfo.Tag = m.mTag;
+            
+        end            
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Static methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods(Static = true)
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function createXMLRegistrationTemplate(modelName)
+            % creates an XML file corresponding the the structure of the
+            % mesh model to be registered.  Once the data has been entered
+            % accordingly, save the xml and calle the
+            % Toolkit.registerModel('Mesh',xmlFileName) method to register
+            % the model with the specifications given in the xml file.
+            
+            xmlStruct.ModelName = modelName;
+            xmlStruct.FileName = 'FileName.stl';
+            xmlStruct.Tag = ' ';
+            xmlStruct.Scale = '[1 1 1]';
+            xmlStruct.FaceColor = '[0 0 1]';
+            xmlStruct.FaceAlpha = '1';
+            xmlStruct.EdgeColor = '[0 0 1]';
+            xmlStruct.EdgeAlpha = '1';
+            xmlStruct.ResolutionReduction = '0';
+            
+            xmlStr = xml_format(xmlStruct,'off','MeshModel');
+            %disp(xmlStr)
+            
+            % creating xml file
+            fName = [modelName,'.xml'];
+            % document header
+            headerStr = sprintf('%s\n','<!-- Mesh Model Registration File -->'); 
+            
+            % document instructions
+            instructionStr(1) = {sprintf('%s\n','<!-- Instructions -->')};
+            
+            % opening file for writing
+            file = fopen(fName,'w');
+            
+            % writing xml header as a comment entry
+            fprintf(file,'%s',headerStr);
+            
+            % writing xml instructions as comment entries
+            for n = 1:length(instructionStr);
+                fprintf(file,'%s',instructionStr{n});
+            end
+            
+            % writing xml contents
+            fprintf(file,'%s',xmlStr);
+            
+            % closing file
+            fclose(file);
+            
+            % opening file
+            open(fName);
+            
+        end  
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function [modelName,modelDataFiles,modelDocuments] = parseXMLRegistrationDocument(xmlFileName)
+            % parseXMLRegistrationDocument
+            %   [modelName,modelDataFiles,modeDocuments] = parseXMLRegistrationDocument(xmlFileName)
+            %   Parses a xml document and returns the corresponding data.
+            %   The results and the contents of each output variable are
+            %   different for every class. The input argument must contain
+            %   an absolute path to a xml document.
+            
+            xmlStruct = xml_load(xmlFileName,'off');
+            
+            % retrieving model name
+            modelName = xmlStruct.ModelName;
+            
+            % retrieving construction info
+            constructionInfo.ModelName = xmlStruct.ModelName;
+            
+            [p,fileName,ext,versn] = fileparts(xmlStruct.FileName);
+            constructionInfo.FileName = [fileName,ext];
+            constructionInfo.Tag = xmlStruct.Tag;
+            constructionInfo.Scale = eval(xmlStruct.Scale);
+            constructionInfo.FaceColor = eval(xmlStruct.FaceColor);
+            constructionInfo.FaceAlpha = eval(xmlStruct.FaceAlpha);
+            constructionInfo.EdgeColor = eval(xmlStruct.EdgeColor);
+            constructionInfo.EdgeAlpha = eval(xmlStruct.EdgeAlpha);
+            constructionInfo.ResolutionReduction  = eval(xmlStruct.ResolutionReduction);
+            
+            % retrieving mesh data
+            meshData = Toolkit.parseMeshDocument(xmlStruct.FileName);% 
+            meshData.FileName = [fileName,ext];
+            
+            % collecting model data files into struct
+            modelDataFiles.ConstructionInfo = constructionInfo;
+            modelDataFiles.MeshData = meshData;
+            
+            % collection model documents into cell array
+            modelDocuments{1} = xmlFileName;
+            modelDocuments{2} = xmlStruct.FileName;
+            
+        end
+            
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public get methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods         
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getVertices(m,transformSpace)
+            
+            
+            switch nargin
+                case 1
+                    transformSpace = Transform.WORLD_SPACE;
+            end
+            
+            %scale = m.getScaleMatrix;
+            
+            switch transformSpace
+                case Transform.PARENT_SPACE
+                    
+                    scale = m.getParentScaleMatrix;
+                    orient = m.getOrientation(transformSpace);
+                    pos = m.getPosition(transformSpace);
+                    val = m.getScaleMatrix*m.mVertices';
+                    
+                    val =((orient*scale)*(val) + repmat(pos,1,m.mNumVertices))';
+                    %val = (scale*m.mVertices')';
+                    
+                case Transform.LOCAL_SPACE
+                    
+                    val = (m.getScaleMatrix*m.mVertices')';
+                    %val = m.mVertices;
+                    
+                case Transform.WORLD_SPACE
+                    
+                    scale = m.getDerivedScaleMatrix;
+                    orient = m.getOrientation(transformSpace);
+                    pos = m.getPosition(transformSpace);                    
+                    val = m.getScaleMatrix*m.mVertices';
+                    %val = m.mVertices;
+                    
+                    %disp(size(val))
+                    %disp(size((orient*scale)*(val')))
+                    %disp(size(repmat(pos,1,m.mNumVertices)))
+                    
+                    val =((orient*scale)*(val) + repmat(pos,1,m.mNumVertices))';
+                    
+                otherwise
+                    
+                    scale = m.getDerivedScaleMatrix;
+                    orient = m.getOrientation(transformSpace);
+                    pos = m.getPosition(transformSpace);
+                    val = m.getScaleMatrix*m.mVertices';
+                    %val = m.mVertices;
+                    
+                    val =((orient*scale)*(val) + repmat(pos,1,m.mNumVertices))';
+                    
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function faces = getFaces(m)
+            
+            faces = m.mFaces;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getModelName(m)
+            
+            val  = m.mModelName;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getFigureHandle(m)
+            
+            val = m.mFigureHandle;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getGraphicsHandle(m)
+            
+            val = m.mGraphicsHandle;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getFileName(m)
+            
+            val = m.mFileName;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getTag(m)
+            
+            val = m.mTag;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setTag(m,val)
+            
+            m.mTag = val;
+            
+        end
+               
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Appearance manipulation public methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+    
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setColor(m,color)
+            % sets color data. Uses 1 x 3 array with values between [ 0,1],
+            % corresponding to the color rgb values.
+            
+            
+            
+            color = Color.validateColor(color);
+            m.mFaceColor = color;
+            m.mEdgeColor = color;
+            m.mMarkerEdgeColor = color;
+            m.mMarkerFaceColor = color;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getColor(m)
+            
+            val = m.mFaceColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setTransparency(m,t)
+            
+            if t > 1
+                
+                t = 1;
+                
+            elseif t < 0
+                
+                t = 0;
+                
+            end
+            
+            m.mFaceAlpha = t;
+            m.mEdgeAlpha = t;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function t = getTransparency(m)
+            
+            t = m.mFaceAlpha;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setFaceTransparency(m,t)
+            
+            if t > 1
+                
+                t = 1;
+                
+            elseif t < 0
+                
+                t = 0;
+                
+            end
+            
+            m.mFaceAlpha = t;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function t = getFaceTransparency(m)
+            
+            t = m.mFaceAlpha;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setEdgeTransparency(m,t)
+            
+            if t > 1
+                
+                t = 1;
+                
+            elseif t < 0
+                
+                t = 0;
+                
+            end
+            
+            m.mEdgeAlpha = t;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function t = getEdgeTransparency(m)
+            
+            t = m.mEdgeAlpha;
+            
+        end 
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setFaceColor(m,color)
+            % sets face color data. Uses 1 x 3 array with values between 
+            % [ 0,1], corresponding to the color rgb values.
+            
+            
+            
+            color = Color.validateColor(color);
+            m.mFaceColor = color;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function color = getFaceColor(m)
+            
+            color = m.mFaceColor;            
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setFaceVisible(m,bool)
+            
+            m.mIsFaceVisible = logical(bool);
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isFaceVisible(m)
+            
+            bool = m.mIsFaceVisible;
+            
+        end  
+                 
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setEdgeColor(m,color)
+            % sets edge color data. Uses 1 x 3 array with values between 
+            % [ 0,1], corresponding to the color rgb values.
+            
+            
+            
+            color = Color.validateColor(color);
+            m.mEdgeColor = color;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function color = getEdgeColor(m)
+            
+            color = m.mEdgeColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setEdgeVisible(m,bool)
+            
+            m.mIsEdgeVisible = logical(bool);
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isEdgeVisible(m)
+            
+            bool = m.mIsEdgeVisible;
+            
+        end 
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setMarkerColor(m,color)
+            % sets marker edge and face color data. Uses 1 x 3 array with 
+            % values between [ 0,1], corresponding to the color rgb values.
+            
+            
+            
+            color = Color.validateColor(color);
+            m.mMarkerEdgeColor = color;
+            m.mMarkerFaceColor = color;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function color = getMarkerColor(m)
+            
+            color = m.mMarkerFaceColor;
+            
+        end           
+            
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setMarkerEdgeColor(m,color)
+            % sets marker edge color data. Uses 1 x 3 array with values between 
+            % [ 0,1], corresponding to the color rgb values.
+            
+            
+            
+            color = Color.validateColor(color);
+            m.mMarkerEdgeColor = color;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function color = getMarkerEdgeColor(m)
+            
+            color = m.mMarkerEdgeColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setMarkerFaceColor(m,color)
+            % sets marker face color data. Uses 1 x 3 array with values 
+            % between [ 0,1], corresponding to the color rgb values.
+            
+            
+            
+            color = Color.validateColor(color);
+            m.mMarkerFaceColor = color;
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function color = getMarkerFaceColor(m)
+            
+            color = m.mMarkerFaceColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setMarkerSize(m,s)
+            
+            m.mMarkerSize = double(s(1));
+            
+            m.updateColor;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function s = getMarkerSize(m)
+            
+            s = m.mMarkerSize;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setMarkerType(m,t)
+            % mesh.setMarkerType(t)
+            %   Enter one of the following symbols as a char character for
+            %  the argument t:  '+o*.xsd^v><ph'.  Enter 'none'  set all
+            %  markers transparent.
+            
+            if any('+o*.xsd^v><ph'==lower(t(1)))
+                
+                m.mMarkerType = lower(t(1));
+                
+            else
+                
+                m.mMarkerType = 'none';
+                
+            end
+            
+            m.updateColor;
+            
+        end
+            
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setMarkerVisible(m,bool)
+            
+            m.mIsMarkerVisible = logical(bool);
+            
+            m.updateColor;
+            
+        end  
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isMarkerVisible(m)
+            
+            bool = m.mIsMarkerVisible;
+            
+        end 
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isVisible(m)
+            
+            bool = m.mVisible;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setVisible(m,bool)
+            
+            if(~bool)
+                
+                m.destroyGraphicsInstance;
+                
+            end
+            
+            m.mVisible = bool;
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % property get methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = get.mVertices(m)
+            
+            val = Mesh.MeshData.getMeshVertices(m.mModelName);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = get.mFaces(m)
+            
+            val = Mesh.MeshData.getMeshFaces(m.mModelName);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = get.mNumVertices(m)
+            
+            val = size(m.mVertices,1);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = get.mNumFaces(m)
+            
+            val = size(m.mFaces,1);
+            
+        end
+        
+    end    
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % protected utility methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function scaleMat = getScaleMatrix(m)
+            scale = m.getScale;
+            scaleMat  = [scale(1) 0 0;0 scale(2) 0;0 0 scale(3)];
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function scaleMat = getParentScaleMatrix(m)
+            
+            if m.hasParentNode
+                
+                scale = m.mParentNode.getScale;
+                
+            else
+                
+                scale = ones(1,3);
+                
+            end
+            
+            scaleMat  = [scale(1) 0 0;0 scale(2) 0;0 0 scale(3)];
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function scaleMat = getDerivedScaleMatrix(m)
+            
+            scale = m.getDerivedScale;
+            
+            scaleMat  = [scale(1) 0 0;0 scale(2) 0;0 0 scale(3)];
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function updateColor(m)
+            
+            if m.isGraphicsInstanceValid
+                
+                % setting face attributes
+                if m.mIsFaceVisible
+                    
+                    set(m.mGraphicsHandle,'FaceColor',m.mFaceColor,'FaceAlpha',m.mFaceAlpha)
+                    
+                else
+                    
+                    set(m.mGraphicsHandle,'FaceColor','none')
+                    
+                end
+                
+                % setting edge attributes
+                if m.mIsEdgeVisible
+                    
+                    set(m.mGraphicsHandle,'EdgeColor',m.mEdgeColor,'EdgeAlpha',m.mEdgeAlpha)
+                    
+                else
+                    
+                    set(m.mGraphicsHandle,'EdgeColor','none');
+                    
+                end
+                
+                % setting marker attributes
+                if m.mIsMarkerVisible
+                    
+                    set(m.mGraphicsHandle,'Marker',m.mMarkerType,'MarkerEdgeColor',m.mMarkerEdgeColor,...
+                        'MarkerFaceColor',m.mMarkerFaceColor,'MarkerSize',m.mMarkerSize)
+                    
+                else
+                    
+                    set(m.mGraphicsHandle,'Marker','none')
+                    
+                end
+                                    
+            end
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % graphics manipulation inherited methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function createGraphicsInstance(m)
+            % creates patch object and associates it with the current mesh
+            % object if one is not currently associated with it.  Once the
+            % patch object is created it stores the corresponding handle in
+            % order to mantain the association during the lifecycle of the
+            % patch.
+            
+            for n = 1:length(m);
+                
+                if (m(n).mVisible && ~m(n).isGraphicsInstanceValid)
+                    
+                    % creating patch object
+                     m(n).mGraphicsHandle=patch('Vertices',m(n).getVertices ...
+                        ,'Faces',m(n).getFaces,'facec',m(n).mFaceColor,'FaceAlpha',m(n).mFaceAlpha...
+                        ,'EdgeColor',m(n).mEdgeColor,'EdgeAlpha',m(n).mEdgeAlpha,'EdgeLighting','phong','AmbientStrength',1,...
+                        'FaceLighting','phong','SpecularColorReflectance',0.5,'AlphaDataMapping','none',...
+                        'CDataMapping','direct','DiffuseStrength',0.5);
+                    
+                    m(n).updateColor;
+                    
+                    % retrieving figure handle
+                    m(n).mFigureHandle=get(get(m(n).mGraphicsHandle,'Parent'),'Parent');
+                    set(m(n).mFigureHandle,'Renderer','openGL')
+                    
+                    % adding light objects only if none exists in the
+                    % current figure
+                    if isempty(findobj(get(m(n).mGraphicsHandle,'parent'),'Type','light'))
+                        
+                        light('Position',[-1000 -1000 1000],'Style','local');
+                        light('Position',[1000 1000 1000],'Style','local')
+                        
+%                         light('Position',[0 1 1],'Style','infinite');
+%                         light('Position',[0 1 1],'Style','infinite');
+%                         light('Position',[0 1 1],'Style','infinite');
+%                         light('Position',[0 -1 -1],'Style','infinite');
+%                         light('Position',[0 -1 -1],'Style','infinite');
+%                         light('Position',[0 -1 -1],'Style','infinite');
+%                         light('Position',[0 -1 -1],'Style','infinite');
+
+                         
+                    
+                    end
+                    
+                    material shiny;
+                    daspect([1 1 1])
+                    view([52.5 40])
+                    xlabel('X'),ylabel('Y'),zlabel('Z')
+                    
+                    %m(n).mVisible=true;
+                end
+                
+                %m(n).createGraphicsInstance@Node;
+
+            end 
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function destroyGraphicsInstance(m)
+            % destroys patch object if one is currently associated with it.
+            
+            for n = 1:length(m)
+                
+                if m(n).isGraphicsInstanceValid
+
+                    delete(m(n).mGraphicsHandle)
+                    m(n).mGraphicsHandle = -1;
+
+                end
+                
+                %m(n).destroyGraphicsInstance@Node;
+                
+            end
+            
+        end
+        
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isGraphicsInstanceValid(m)
+            % returns true if a patch object is currently binded to the
+            % mesh object.  This method is non inherited
+            
+            bool = ishandle(m.mGraphicsHandle);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function update(m)
+            % updates patch object in accordancs to the current status of
+            % the mesh object.  No action is taken unless a valid patch
+            % object is currently binded to the mesh object.
+            
+            if m.isGraphicsInstanceValid
+                
+                set(m.mGraphicsHandle,'Vertices',m.getVertices)
+                
+            end
+            
+            % calling superclass update method
+            %m.update@Node;            
+
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setScale(m,scale)
+            %import GST.BaseClasses.Node
+            
+            m.setScale@BaseClasses.Node(scale)            
+            m.update;               
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Graphics Manipulation protected inherited methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods(Access = protected)
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function displayWindow(m)
+            
+            if ishandle(m.mFigureHandle)
+                
+                figure(m.mFigureHandle);
+                
+            end
+            
+        end
+        
+    end
+        
+       
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % graphics manipulation mesh exclusive methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function reduceMeshResolution(m,reductionFactor)
+            
+            import Mesh.*
+            
+            MeshData.reduceMeshResolution(m.mModelName,reductionFactor);
+            
+            %m.mNumVertices = size(m.mVertices,1);
+            %m.mNumFaces = size(m.mFaces,1);
+            
+            m.update;
+
+        end
+
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function restoreMeshResolution(m)
+            
+            import Mesh.*
+            
+            MeshData.restoreMeshResolution(m.mModelName);
+            
+            m.mNumVertices = size(m.mVertices,1);
+            m.mNumFaces = size(m.mFaces,1);
+            
+            m.update;
+
+        end       
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Node management inherited methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function addChildNode(m,childNode)
+            
+            %warning('Usage of this function has been disabled for the mesh class')
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function getChildNode(m,index)
+            
+            %warning('Usage of this function has been disabled for the mesh class')
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function getChildNodeIndex(m,childNode)
+            
+            %warning('Usage of this function has been disabled for the mesh class')
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function isChildNode(m,childNode)
+            
+            %warning('Usage of this function has been disabled for the mesh class')
+            
+        end
+            
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function removeChildNode(m,index)
+            
+            %warning('Usage of this function has been disabled for the mesh class')
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function removeAllChildNodes(m)
+            
+            %warning('Usage of this function has been disabled for the mesh class')
+            
+        end
+        
+    end
+    
+end
+        
+        

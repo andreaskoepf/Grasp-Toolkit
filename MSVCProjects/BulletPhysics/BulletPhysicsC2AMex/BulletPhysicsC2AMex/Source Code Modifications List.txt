@@ -1,0 +1,14 @@
+Source Code Modification List
+
+
+_______________________________________________________________________
+Modification no 1
+_______________________________________________________________________
+
+File :	PQP.cpp
+Beginning Line No :	392
+End Line No :	418
+
+Description :	Canceling the computation of com and setting it to cog = {0 , 0, 0}
+
+_______________________________________________________________________

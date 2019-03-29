@@ -1,0 +1,26 @@
+classdef Cube < Solid
+    methods
+        function cube = Cube(varargin)
+            
+                    
+            
+            filename=Toolkit.createToolkitPath('@Cube','Cube.stl');            
+            cube=cube@Solid(filename);
+            
+            switch nargin
+                case 1
+                    dimensions=varargin{1};
+                    switch length(dimensions)
+                        case 1
+                            cube.scale(dimensions);
+                        case 2
+                            cube.resize([dimensions cube.Dimensions(3)]);
+                        case 3
+                            cube.resize(dimensions);
+                        otherwise
+                            error('Invalide array size')
+                    end
+                    
+        end
+    end
+end

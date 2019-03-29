@@ -1,0 +1,406 @@
+classdef Hand < handle
+    properties(SetAccess=protected)
+        PalmObject
+        Fingers
+        ModelName
+        Tag
+        
+        % parameters used by physics simulation
+        PhysicsHandle
+        ClassIndex=int32(3);
+        MethodIndexMap=ArticulatedBody.getMethodIndexMap;
+    end
+    
+    properties
+        Color
+        IsDynamic=int32(0);
+        InPhysicsMode=int32(0);
+    end
+    properties(Dependent=true)
+        Frame
+    end
+    
+    properties(Dependent=true,SetAccess=protected)
+        Nodes
+        LocalNodes
+    end
+    
+    events
+        UPDATE
+    end
+    
+    methods
+        function h=Hand(varargin)
+            switch nargin
+                case 0
+                    return
+                case 1
+                    if isa(varargin{1},'Hand')
+                        data=varargin{1}.toStruct;
+                        
+                        for n=1:length(data)
+                            h(n).loadFieldsFromStruct(data(n));
+                        end
+                        h.addlistener;
+                    elseif isa(varargin{1},'char')
+                        data=Toolkit.loadModelData('Hand',varargin{1});
+                        
+                        for n=1:length(data.FingerModelNames)
+                            fingers(n)=Finger(data.FingerModelNames{n});  
+                            fingers(n).BaseObjectVisible=false;
+                                                      
+                            
+                        end
+                        
+                        h.Fingers=fingers;                        
+                        h.PalmObject=Palm(data.PalmModelName);
+                        if data.Color~=-1
+                            h.Color=data.Color;
+                        end
+                        
+                        h.reducePatch(data.PatchReductionFactor);
+                        h.ModelName=data.ModelName;
+                        h.Tag=data.Tag;
+                        h.addlistener;
+                        
+                        
+                    elseif isa(varargin{1},'struct')
+                        
+                        data=varargin{1};
+                        
+                        for n=1:length(data)
+                            h(n).loadFieldsFromStruct(data(n));
+                        end
+                        h.addlistener;
+                        
+                       
+                    end
+                case 2
+                    if isa(varargin{1},'Finger') && isa(varargin{2},'Palm')
+                        
+                        for n=1:length(varargin{1});
+                            fingers(n)=Finger(varargin{1}(n));
+                        end
+                        
+                        h.Fingers=fingers;
+                        h.PalmObject=Palm(varargin{2});
+                        
+                        h.addlistener;
+                        
+                        
+                    else
+                        
+                        error('invalid arguments')
+                        
+                    end
+                    
+            end
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function update(h)
+            notify(h,'UPDATE')
+%             h.PalmObject.update;
+%             for n=1:length(h.Fingers);
+%                 h.Fingers(n).update;
+%             end
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function addlistener(h)
+            
+            % adding listener for fingers
+            for n=1:length(h.Fingers);
+                addlistener@handle(h,'UPDATE',@(src,evnt)update(h.Fingers(n)));
+            end            
+            
+            % adding listener for palm
+            addlistener@handle(h,'UPDATE',@(src,evnt)update(h.PalmObject));
+        end
+       
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%     
+        function set.PalmObject(h,p)
+            h.PalmObject=p;
+            h.updateFingerNodes;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function set.Color(h,color)
+            for n=1:length(h.Fingers);
+                h.Fingers(n).Color=color;
+            end
+            h.PalmObject.Color=color;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function nodes=get.Nodes(h)
+            nodes=h.PalmObject.Nodes;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function localnodes=get.LocalNodes(h)
+            localnodes=h.PalmObject.LocalNodes;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function set.Frame(h,frame)
+            h.PalmObject.Frame=frame;
+            nodes=h.Nodes;
+            for n=1:length(h.Fingers);
+                
+                h.Fingers(n).BaseFrame=nodes(:,:,n);
+            end
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function frame=get.Frame(h)
+            frame=h.PalmObject.Frame;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function h=ctranspose(h)
+            h.Fingers.setHandles;
+            h.PalmObject.setHandles;            
+            h.update;
+            grid on
+            drawnow
+            figure(h.PalmObject.FigureHandle);
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function loadFieldsFromStruct(h,data)            
+            
+            indexes=1:length(data);
+            % assigning data to the fields
+            for n=indexes;
+
+                for m=1:length(data(n).Links)
+                    fingers(m)=Fingers(data(n).Fingers(m));
+                    fingers(m).BaseObjectVisible=false;
+                end
+                h(n).Fingers=fingers;
+                h(n).PalmObject=Palm(data(n).PalmObject);
+                h(n).Frame=data(n).Frame;
+                h(n).ModelName=data(n).ModelName;
+                h(n).Tag=data(n).Tag;
+
+            end
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function set.IsDynamic(h,bool)
+            
+            
+            h.PalmObject.IsDynamic=bool;
+            
+            
+            for n=1:length(h.Fingers);
+                h.Fingers(n).IsDynamic=bool;
+            end
+            
+            if(~isa(bool,'int32'))
+                bool=int32(bool);
+            end
+                
+            if((bool==int32(1))||(bool==int32(0)))
+                h.IsDynamic=bool;
+            end
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setPhysicsHandle(h)
+            % assigns physics handle to the articulated body and to all of
+            % the bodies that belong to it
+            
+            bodies = h.getAllBodies;
+            for n=1:length(bodies);
+                bodies{n}.setPhysicsHandle;
+            end
+            
+            
+            % retrieving handle to physics object
+            cId=h.ClassIndex;
+            mId=h.MethodIndexMap('Constructor');
+            h.PhysicsHandle=PhysicsWorld.PhysicsFunction(cId,mId);
+            
+            % adding all bodies to the articulated body 
+            for n=1:length(bodies);
+                h.addBody(bodies{n});
+            end
+                       
+            
+            h.InPhysicsMode=true;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function updateFromPhysics(h)
+            for n=1:length(h.Fingers);
+                h.Fingers(n).updateFromPhysics;
+            end
+            h.PalmObject.updateFromPhysics;
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function updateToPhysics(h)
+            
+            h.startUpdate;
+            
+            for n=1:length(h.Fingers);
+                h.Fingers(n).updateToPhysics;
+            end
+            h.PalmObject.updateToPhysics;
+            
+            h.stopUpdate;
+            
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function destroyPhysicsHandle(h)
+            for n=1:length(h.Fingers);
+                h.Fingers(n).destroyPhysicsHandle;
+            end
+            h.PalmObject.destroyPhysicsHandle;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bodies = getAllBodies(h)
+            % return all bodies in a cell array
+            bodies=cell(0,0);
+            for n=1:length(h.Fingers);
+                bodies=cat(2,bodies,h.Fingers(n).getAllBodies);
+            end
+            
+            bodies=cat(2,bodies,{h.PalmObject});
+        end            
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function scale(h,f)
+            for n=1:length(h.Fingers);
+                h.Fingers(n).scale(f);
+            end
+            h.PalmObject.scale(f);
+            h.updateFingerNodes;
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function reducePatch(h,factor)
+            for n=1:length(h.Fingers)
+                h.Fingers(n).reducePatch(factor);
+            end
+            
+            h.PalmObject.reducePatch(factor);
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function data=toStruct(h)
+            
+            warning off
+            for n=1:length(h);
+                data(n)=struct(h(n));
+            end
+            warning on
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function drive(h,inputCell,selection)
+            
+            h';
+            
+            fingerIndexes=num2cell(1:length(h.Fingers));
+            d=1;
+            %bool=true;
+            
+            while(true)
+                
+                for n=1:length(selection);
+                    
+                    
+                    switch selection(n)
+                        case 0
+                            
+                            try
+                                h.Frame=inputCell{n}(:,:,d);
+                            catch ME
+                                selection(n)=nan;
+                            end
+                            
+                        case fingerIndexes
+                            
+                            try
+                                h.Fingers(selection(n)).JointValues=inputCell{n}(d,:);
+                            catch ME
+                                selection(n)=nan;
+                            end
+                            
+                        otherwise
+                            
+                            
+                            
+                    end
+                end
+                
+                
+                if all(isnan(selection))
+                    break
+                else
+                    selection(isnan(selection))=[];
+                end
+                
+                
+                
+                h.update;
+                drawnow
+                d=d+1;
+            end
+            
+            
+        end
+        
+    end
+    
+    methods (Access=protected)
+        
+        function updateFingerNodes(h)
+            nodes=h.Nodes;
+            for n=1:length(h.Fingers);
+                
+                h.Fingers(n).BaseFrame=nodes(:,:,n);
+            end
+        end
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function addBody(h,body)
+            % this function adds the body to the articulated body once it
+            % is assigned a valid physics handle
+            
+            if(h.InPhysicsMode)
+                cId=h.ClassIndex;
+                mId=h.MethodIndexMap('addBody');
+                PhysicsWorld.PhysicsFunction(cId,mId,h.PhysicsHandle,body.PhysicsHandle);
+            end
+        end
+        
+        
+        
+    end
+    
+    methods (Static,Access=protected)
+        function map=getMethodIndexMap
+            
+            map=containers.Map;
+            
+            % adding methods index and string description pairs
+            map('Constructor')=int32(0);
+            map('startUpdate')=int32(1);
+            map('stopUpdate')=int32(2);
+            map('addBody')=int32(3);
+            map('Destructor')=int32(-1);
+            
+        end
+        
+    end
+end
+        

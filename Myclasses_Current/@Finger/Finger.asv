@@ -1,0 +1,88 @@
+classdef Finger < KinematicChain
+    
+    properties(SetAccess=protected)
+        ModelName
+        Tag
+        Dimensions
+        Contact
+    end
+    
+    methods 
+        function f=Finger(varargin)
+            switch nargin
+                case 0
+                    return
+                case 1
+                    if isa(varargin{1},'Finger')
+                        data=varargin{1}.toStruct;
+                        
+                        for n=1:length(data)
+                            f(n).loadFieldsFromStruct(data(n));
+                        end  
+                    elseif isa(varargin{1},'char')
+                        data=Toolkit.loadModelData('Finger',varargin{1});
+                        
+                        for n=1:length(data.PhalanxModelNames)
+                            links(n)=Phalanx(data.PhalanxModelNames{n});
+                            links(n).reducePatch(data.PatchReductionFactor)
+                            
+                            if data.Color~=-1
+                                links(n).Color=data.Color;
+                            end
+                        end
+                        
+                        f.Link=links;
+                        
+                        if ~isempty(data.BaseObjectName)
+                           f.BaseObject=Solid(data.BaseObjectName);
+                        end
+                        
+                        f.ModelName=data.ModelName;
+                        f.Tag=data.Tag;
+                    elseif isa(varargin{1},'struct')
+                        
+                        data=varargin{1};
+                        
+                        for n=1:length(data)
+                            f(n).loadFieldsFromStruct(data(n));
+                        end
+                        
+                    elseif isa(varargin{1},'Phalanx') 
+                        for n=1:length(varargin{1});
+                            links(n)=Phalanx(varargin{1}(n));
+                        end
+                        f.Links=links;
+                    else
+                        error('invalid argument')
+                        
+                    end
+                case 2
+                    if isa(varargin{1},'Phalanx') && isa(varargin{2},'Solid')
+                        for n=1:length(varargin{1});
+                            links(n)=Phalanx(varargin{1}(n));
+                        end
+                        f.Links=links;
+                        f.BaseObject=Solid(varargin{2});
+                    else
+                        error('invalid a
+                        
+                    end
+            end
+        end        
+       
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function loadFieldsFromStruct(f,data)
+            indexes=1:length(data);
+            % assigning data to the fields
+            for n=indexes;
+                
+                f(n).loadFieldsFromStruct@KinematicChain(data(n));
+                f(n).ModelName=data(n).ModelName;
+                f(n).Tag=data(n).Tag;
+                
+            end
+        end
+    end
+                    
+        
+end

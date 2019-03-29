@@ -1,0 +1,13 @@
+<!-- Mesh Model Registration File -->
+<!-- Instructions -->
+<MeshModel>
+  <ModelName>BoxMesh</ModelName>
+  <FileName>G:\School Documents\work\Myclasses_Current\Cube.stl</FileName>
+  <Tag> </Tag>
+  <Scale>[1 1 1]</Scale>
+  <FaceColor>[0 0 1]</FaceColor>
+  <FaceAlpha>1</FaceAlpha>
+  <EdgeColor>[0 0 1]</EdgeColor>
+  <EdgeAlpha>1</EdgeAlpha>
+  <ResolutionReduction>0</ResolutionReduction>
+</MeshModel>

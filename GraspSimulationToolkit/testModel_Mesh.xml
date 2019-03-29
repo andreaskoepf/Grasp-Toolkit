@@ -1,0 +1,9 @@
+<!-- Mesh Model Registration File -->
+<!-- Instructions -->
+<MeshModel>
+  <ModelName>testModel</ModelName>
+  <FileName>FileName.stl</FileName>
+  <Tag> </Tag>
+  <FaceColor>[0 0 1]</FaceColor>
+  <EdgeColor>[0 0 1]</EdgeColor>
+</MeshModel>

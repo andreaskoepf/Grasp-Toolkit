@@ -1,0 +1,2 @@
+LIBRARY ContinuousCollisionDetectionC2A
+EXPORTS mexFunction

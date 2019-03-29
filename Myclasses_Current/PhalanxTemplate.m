@@ -1,0 +1,411 @@
+% This class defines default sizes and details of Phalanx objects
+
+
+classdef PhalanxTemplate
+    properties (SetAccess=private)        
+        DefaultDimensions % Overall length of specified Phalanx
+        DefaultDivisions   % Lengths of each division of Phalanx overall length
+        %PartDetails = struct('OriginalSize',[],'MoveToOrigin',[]);      
+                           % Data structure containing the default specifications of 
+                           % each part that composes the phalanx
+        FileDirectory
+        AdjustmentFrame=eye(4);
+        Type
+        Style
+        Action='revolute';
+        Color
+        ReductionRatio=0;
+                           
+    end
+    
+    methods 
+        function template = PhalanxTemplate(type,style)
+            
+            if isa(style,'numeric')
+                switch ['Template' num2str(style)]
+                    case 'Template1'
+                        switch type
+                            case 'distal'
+                                defaultDimensions=[12 6 8]; % [length heigth width]
+                                defaultDivisions=[3 5 4];
+                                action='revolute';
+                                color=[1 0.5625 0];
+                                
+                            case 'middle'
+                                defaultDimensions=[16 6 8]; % [length heigth width]
+                                defaultDivisions=[3 10 3];
+                                action='revolute';
+                                color='blue';
+                            case 'proximal'
+                                defaultDimensions=[20 6 8]; % [length heigth width]
+                                defaultDivisions=[3 14 3];
+                                action='revolute';
+                                color=[1 0.5625 0];
+                            case 'proximalaa'
+                                defaultDimensions=[20 6 8]; % [length heigth width]
+                                defaultDivisions=[3 14 3];
+                                action='revolute';
+                                color=[1 0.5625 0];
+                            case 'knuckle'
+                                defaultDimensions=[2 4 2];
+                                defaultDivisions=2;
+                                action='revolute';
+                                color='yellow';
+                            case 'base'
+                                defaultDimensions=[5 6 8];
+                                defaultDivisions=5;
+                                action='none';
+                                color='blue';
+                            case 'baseaa'
+                                defaultDimensions=[5 8 6];
+                                defaultDivisions=5;
+                                action='none';
+                                color='blue';
+                            case 'dof'
+                                defaultDimensions=[0 0 0];
+                                defaultDivisions=0;
+                                action='revolute';
+                                color='blue';
+                            case 'tmetacarpal'
+                                defaultDimensions=[24 8 10];
+                                defaultDivisions=[3 18 3];
+                                action='revolute';
+                                color=[0.5 0.5 0.5];
+                            case 'tbaseaa'
+                                defaultDimensions=[5 10 8];
+                                defaultDivisions=5;
+                                action='none';
+                                color='blue';
+                            case 'tproximal'
+                                defaultDimensions=[20 8 10]; % [length heigth width]
+                                defaultDivisions=[3 14 3];
+                                action='revolute';
+                                color=[1 0.5625 0];
+                            case 'tdistal'
+                                defaultDimensions=[16 8 10]; % [length heigth width]
+                                defaultDivisions=[3 8 5];
+                                action='revolute';
+                                color=[1 0.5625 0];
+
+                            otherwise 
+                                error([type ' is not a valid type'])
+                        end
+
+                    otherwise
+                        error(['template' num2str(style) ' has not been implemented or is not defined'])
+                end
+                template.DefaultDimensions=defaultDimensions;
+                template.DefaultDivisions=defaultDivisions;
+                template.Type=type;
+                template.Style=['Template' num2str(style)];
+                template.FileDirectory=Toolkit.createToolkitPath('Phalanx',['Template',num2str(style)],type,type);
+                %template.FileDirectory=['Phalanx\Template' num2str(style) '\' type '\' type];
+                template.Action=action;
+                template.Color=color;
+                
+                
+            elseif isa(style,'char')
+
+
+                % Constructing directory path
+                
+                %dirPath=['Phalanx\' style '\' type '\PhalanxDetails'];                
+                
+                % loading template
+                try
+                    %disp(Toolkit.createToolkitPath('Phalanx',style,type,'PhalanxDetalis'))
+                    s=load(Toolkit.createToolkitPath('Phalanx',style,type,'PhalanxDetails'),'template');
+                    %s=load(dirPath,'template');
+                catch
+                    error(['This combination of type and style for Phalanx object ' style '\' type...
+                        ' has not been defined yet'])
+                end
+                
+                % assigning template
+                %template=s.template;
+                
+                % assingning template properties
+                template.DefaultDimensions=s.template.DefaultDimensions;
+                template.DefaultDivisions=s.template.DefaultDivisions;
+                template.Type=type;
+                template.Style=style;
+                template.FileDirectory=s.template.FileDirectory;
+                template.Action=s.template.Action;
+                template.Color=s.template.Color;
+                template.ReductionRatio=s.template.ReductionRatio;
+                template.AdjustmentFrame=s.template.AdjustmentFrame;
+                
+                
+                
+                
+            else
+                error(['first argument is not a valid type'])
+            end
+        end
+        
+        
+        
+        function lengthDivisions = getActualDivisions(template,size)
+            lengthDivisions=(template.DefaultDivisions/sum(template.DefaultDivisions))*size(1);
+        end
+        
+        function customDivisions = getCustomDivisions(template,size,ratio)
+            % ration : length ration used to resize the outer lengths of
+            % the phalanx
+            
+            if  length(template.DefaultDivisions)>1
+                
+                aDiv=getActualDivisions(template,size); % actual divisions
+                
+                oLen=ratio*[template.DefaultDivisions(1) template.DefaultDivisions(end)]; % outer lengths
+                
+                customDivisions=[oLen(1) aDiv(2:end-1) oLen(2)];
+                customDivisions(2)=customDivisions(2)+(aDiv(1)-oLen(1));
+                customDivisions(end-1)=customDivisions(end-1)+(aDiv(end)-oLen(end));
+            else
+                customDivisions=getActualDivisions(template,size);
+            end
+        end
+                
+    end
+    
+    methods (Static)
+        
+        function addTemplate(varargin)
+            % ADDTEMPLATE
+            %
+            %   addTemplate(ptype,style)
+            %       Static function of the phalanx class that creates a
+            %       structure file containing the details of construction
+            %       of a Phalanx object.  It propmts the user for
+            %       information to be entered, the information is then
+            %       stored.  The MAT file is saved in the same directory
+            %       where the STL file for the corresponding file exist.
+            %       
+            %       ptype: 
+            %           String array containing the name of Phalanx type
+            %
+            %       style:
+            %           String array containing the name of style.
+            %
+            %   addTemplate(ptype,ftype,style)
+            %       Same as the first but it takes an additional argument
+            %
+            %       ptype:
+            %           String array containing the name of Phalanx type
+            %
+            %       ftype:
+            %           String array containing the name of the finger to
+            %           which the phalanx object within this style belongs.
+            %
+            %       style:
+            %           String array containing the name of style.
+            
+            
+            switch nargin
+                case 2
+                    
+                    ptype=varargin{1}; 
+                    ftype='';
+                    style=varargin{2};                   
+                   
+                    
+                case 3
+                    
+                    ptype=varargin{1};
+                    ftype=[varargin{2} '\'];
+                    style=varargin{3};
+                    
+                  
+                    
+                otherwise
+                    error('wrong number of arguments')
+            end
+       
+            
+            % Creating Directory             
+            if isnumeric(style)
+                
+                dirPath=Toolkit.createToolkitPath('Phalanx',['Template' num2str(style)],ftype,ptype);
+                %dirPath=['Phalanx\' 'Template' num2str(style) '\' ftype ptype];
+                
+            elseif ischar(style)
+                
+                dirPath=Toolkit.createToolkitPath('Phalanx',style,ftype,ptype);
+                % creating directory name
+                %dirPath=['Phalanx\' style '\' ftype ptype ];
+              
+            else
+                
+                error('not a valid data type for argument style')
+                
+            end
+
+
+% 
+%             % verifying that path exists
+%             if ~isdir(dirPath)
+% 
+%                 % make directory if it doesn't exist
+%                 mkdir(dirPath)
+% 
+%             end
+
+
+
+            %%%%%%%%%%%%%%% Prompt user for phalanx specifics %%%%%%%%%
+            
+            fprintf('\n----------- Phalanx Details Specification File Creation ----------\n\n')
+            fprintf(['\t\tThe following prompts will query for information which will be stored\n '...
+                '\t\tand utilized in the construction of Phalanx objects that match the specified\n'...
+                '\t\tcharacteristics.\tA total of 7 steps must be completed in order to ensure\n'...
+                '\t\tsuccessful creation of the Phalanx definition file.\n\n'])
+            
+            
+            while(true)
+                % prompt user for default phalans dimensions
+                fprintf('\n\n\t- Step 1: Default Dimensions\n\t\t')
+                fprintf('Enter phalanx default dimensions as a 1 x 3 vector [length height width]:\n\t');
+                psize=input('Entry:');
+                template.DefaultDimensions=psize;
+                
+                
+                
+                % setting defaults division as the length of the phalanx
+                fprintf('\n\n\t- Step 2: Default Divisions\n\t\t')
+                fprintf(['Enter phalanx default divisions as a 1 x 3 vector [length height width]\n'...
+                    '\t\t(If using a fixed type press enter to skip):\n\t']);
+                div=input('Entry:');
+                % object (only for fixed styles)
+                if isempty(div)
+                    template.DefaultDivisions=psize(1);
+                else
+                    template.DefaultDivisions=div;
+                end
+                
+                
+                % propmt user for phalanx action
+                fprintf('\n\n\t- Step3 : Action\n\t\t')
+                fprintf('Enter phalanx motion action:\n\t\t\t1 - revolute\n \t\t\t2 - prismatic\n \t\t\t3 - none:\n\t');
+                option=input('Entry:');
+                switch option
+                    case 1
+                        template.Action='revolute';
+                    case 2
+                        template.Action='prismatic';
+                    case 3
+                        template.Action='none';
+                end
+                
+                
+                % prompt user for adjustment frame
+                fprintf('\n\n\t- Step 4: Adjustment Frame\n\t\t')
+                fprintf('Enter adjustment matrix. If it''s not required enter eye(4):\n\t');
+                template.AdjustmentFrame=input('Entry:');
+                
+                % promt user for color ( enter as string array)
+                fprintf('\n\n\t- Step 5: Color\n\t\t')
+                fprintf(['Enter color string or a 1 x 3 vector corresponding to rbg intensities\n\t\t'...
+                'or enter corresponding color string:\n\t']);
+                template.Color=input('Entry:');
+                
+                % promt user for reduction ratio for patch reduction
+                fprintf('\n\n\t- Step 6: Reduction Ratio\n\t\t')
+                fprintf(['Enter numeric value that''s in the range of <0,1> to be used in\n\t\t'...
+                    'calculating the percentage of patch reduction\n\t\t(enter " 0 " is no reduction is to be performed):\n\t']);
+                template.ReductionRatio=input('Entry:');
+                
+                % prompt user for file name
+                fprintf('\n\n\t- Step 7: Graphical File Selection ( STL File)\n\t\t')
+                %             fprintf('Enter "1" to load file or pressed enter to skip\n\t')
+                %             selection=input('Entry:');
+                %             if selection==1
+                fprintf('\n\t\tSelect STL file that corresponds with the phalanx definition using the provided UI\n')
+                [filename,filenamePath]=uigetfile({'*.stl;*.STL;*.wrl;*.WRL'},'Select STL file');
+                template.FileDirectory=[dirPath '\' filename];
+                %template.FileDirectory=[dirPath '\' filename(1:end-4)];
+                
+                % Displaying the entries
+                fprintf('\n\n\t- Step 8: Confirmation \n\t\t')
+                fprintf('The following data has been entered for the configuration file\n\t\t')
+                fprintf('Type:\t%s\n\t\tStyle:\t%s\n',ptype,style)
+                fprintf('\n\t\t1 - Phalanx Default Dimensions:\n\t\t\t%1.2f\t%1.2f\t%1.2f',template.DefaultDimensions)
+                
+                fprintf('\n\n\t\t2 - Phalanx Default Divisions:\n')
+                if isempty(div)
+                    fprintf('\t\t\t\t%1.2f',template.DefaultDivisions')
+                else
+                    fprintf('\t\t\t\t%1.2f\t%1.2f\t%1.2f',template.DefaultDivisions')
+                end
+                
+                fprintf('\n\n\t\t3 - Action:\n\n')                
+                fprintf('\t\t\t\t%s',template.Action)
+                
+                
+                fprintf('\n\n\t\t4 - Adjustment Frame:\n\n')
+                fprintf('\t\t\t\t%1.2f\t%1.2f\t%1.2f\t%1.2f\n',template.AdjustmentFrame')
+                
+                fprintf('\n\n\t\t5 - Color:\n\n')
+                if isa(template.Color,'numeric')
+                    fprintf('\t\t\t\t%1.2f\t%1.2f\t%1.2f',template.Color')
+                else
+                    fprintf('\t\t\t\t%s',template.Color)
+                end
+                
+                
+                fprintf('\n\n\t\t6 - Reduction Ratio:\n\t\t')
+                fprintf('\t\t%1.2f',template.ReductionRatio)
+                
+                
+                fprintf('\n\n\t\t7 - File Directory:\n\t\t')
+                %fprintf('\t\t%s',[template.FileDirectory '.stl'])
+                fprintf('\t\t%s',template.FileDirectory)
+                
+                fprintf('\n\n\t\tSave Configuration file?:\n\t\t\t1 - %s\n\t\t\t2 - %s\n\t\t\t3 - %s\n\t\t','save','reenter data',...
+                    'quit without saving')
+                s=input('Entry: ');
+                
+                switch s
+                    case 1
+                        break;
+                    case 2;
+                        continue;
+                    case 3
+                        fprintf('\n\t\tConfiguration file was not saved\n')
+                        return;
+                end 
+            end
+            
+            % verifying that path exists
+            if ~isdir(dirPath)
+
+                % make directory if it doesn't exist
+                mkdir(dirPath)
+
+            end
+            
+            
+            % copy STL file to phalanx directory folder
+            if copyfile([filenamePath filename],dirPath)
+                fprintf('\n\n\t\tFile was successfully copied')
+            else
+                fprintf('\n\n\t\tFile could not be copied')
+            end                
+%             else
+%                     fprintf('\n\n\t\tFile was not copied')
+%             end
+
+
+
+            % saving structure
+            save([dirPath '\PhalanxDetails'],'template')
+            
+            fprintf(['\n\n\tCreation of Specification File Finished\n'...
+                '\t---------------------------------------\n\n'])
+            
+            
+        end
+    end
+        
+end    
+            

@@ -1,0 +1,5 @@
+Tentative Changes:
+
+ - Implement the getPosition and getRotation methods which should return data in btScalar type.
+ - make all ground objects have a btBvtCollisionShape for better performance
+ - device method for objects to switch from a kinematic state to a dynamic state 

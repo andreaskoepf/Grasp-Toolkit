@@ -1,0 +1,2 @@
+LIBRARY	"BulletPhysicsMex"
+EXPORTS mexFunction

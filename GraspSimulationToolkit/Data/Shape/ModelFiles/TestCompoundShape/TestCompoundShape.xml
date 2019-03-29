@@ -1,0 +1,30 @@
+<!-- Shape Model Registration File -->
+<!-- Instructions -->
+<!-- Additional Options for GeometryID are: -->
+<!--	SHAPE_EMPTY	-->
+<!--	SHAPE_POINT	-->
+<!--	SHAPE_PLANE	-->
+<!--	SHAPE_BOX	-->
+<!--	SHAPE_SPHERE	-->
+<!--	SHAPE_COMPOUND	-->
+<!--	SHAPE_CYLINDER	-->
+<!--	SHAPE_CAPSULE	-->
+<!--	SHAPE_TERRAINMESH	-->
+<!-- End Of Instructions -->
+<ShapeModel>
+  <ModelName>TestCompoundShape</ModelName>
+  <Tag> </Tag>
+  <GeometryID>Shape.SHAPE_COMPOUND</GeometryID>
+  <Scale>[1 1 1]</Scale>
+  <Meshes>
+    <ModelName>BoxMesh</ModelName>
+    <Transform>eye(4)</Transform>
+    <Scale>0.5*[1 1 1]</Scale>
+    <ModelName>SphereMesh</ModelName>
+    <Transform>Transform.translation('x',0.25+0.5)</Transform>
+    <Scale>[1 1 1]</Scale>
+    <ModelName>SphereMesh</ModelName>
+    <Transform>Transform.translation('x',-(0.25+0.5))</Transform>
+    <Scale>[1 1 1]</Scale>
+  </Meshes>
+</ShapeModel>

@@ -1,0 +1,26 @@
+classdef Toolkit < handle 
+    
+  
+    properties (Constant=true)
+        Root=getRootPath
+    end
+    
+    
+    
+    methods(Static=true)
+        function p=createToolkitPath(varargin)
+            p=fullfile(Toolkit.Root,varargin{:});
+        end
+            
+    end
+    
+    method*
+    
+end
+
+% This class should also keep track of all of the registered models
+
+ function r=getRootPath
+            pathFiles=what('MyClasses');
+            r=pathFiles.path;
+ end

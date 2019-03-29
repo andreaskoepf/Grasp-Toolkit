@@ -1,0 +1,28 @@
+
+-----------------Link Model Registration ------------------  
+    Select one of the following options 
+                GENERAL ATTRIBUTES
+        1 - (required) Enter Model Name
+        2 - (optional) Enter Tag  
+                GEOMETRIC ATTRIBUTES
+        3 - (required) Select Model file            
+        4 - (optional) Set new Reference Frame        
+        5 - (optional) Reduce Patch number 
+        6 - (optional) Set Color
+                KINEMATIC ATTRIBUTES
+        7 - (required) Set the DH parameters.
+        8 - (required) Select joint type
+        9 - (optional) Enter joint limits
+        10 - (optional) Enter joint offsets
+        11 - (optional) Enter joint values
+                MASS ATTRIBUTES
+        12 - (optional) Enter Mass (grams)
+        13 - (optional) Enter Inertia Tensor(g x cm^2
+        14 - (optional) Enter Center of gravity (cm)
+
+        15 - COPY DATA FROM REGISTERED MODEL
+        16 - SHOW CURRENT DATA
+        17 - REGISTER
+        18 - INSTRUCTIONS
+        0 -  ABORT SESSION WITHOUT SAVING   
+    

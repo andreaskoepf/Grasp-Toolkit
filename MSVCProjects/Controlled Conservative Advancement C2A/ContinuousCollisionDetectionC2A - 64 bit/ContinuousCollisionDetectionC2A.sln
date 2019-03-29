@@ -1,0 +1,58 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ContinuousCollisionDetectionC2A", "ContinuousCollisionDetectionC2A.vcproj", "{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E} = {8B36BFF5-84A4-45F1-A189-998B0A12778E}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PQP", "Aditional Projects\C2A_1.2\ProximityQuery\PQP_v1.3\PQP.vcproj", "{692FCAEB-84AB-419B-9EE9-815F1001078C}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "C2A", "Aditional Projects\C2A_1.2\ProximityQuery\C2A\build\C2A.vcproj", "{1DCF5D59-6E61-4C98-A863-36BF15532385}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LinearMath", "Aditional Projects\LinearMath\LinearMath.vcproj", "{8B36BFF5-84A4-45F1-A189-998B0A12778E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Debug|Win32.ActiveCfg = Debug|Win32
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Debug|Win32.Build.0 = Debug|Win32
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Debug|x64.ActiveCfg = Debug|x64
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Debug|x64.Build.0 = Debug|x64
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Release|Win32.ActiveCfg = Release|Win32
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Release|Win32.Build.0 = Release|Win32
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Release|x64.ActiveCfg = Release|x64
+		{149AFBBE-A14C-4A42-BC5D-8979B22A26F9}.Release|x64.Build.0 = Release|x64
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Debug|Win32.Build.0 = Debug|Win32
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Debug|x64.ActiveCfg = Debug|x64
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Debug|x64.Build.0 = Debug|x64
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Release|Win32.ActiveCfg = Release|Win32
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Release|Win32.Build.0 = Release|Win32
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Release|x64.ActiveCfg = Release|x64
+		{692FCAEB-84AB-419B-9EE9-815F1001078C}.Release|x64.Build.0 = Release|x64
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Debug|Win32.ActiveCfg = Debug|Win32
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Debug|Win32.Build.0 = Debug|Win32
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Debug|x64.ActiveCfg = Debug|x64
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Debug|x64.Build.0 = Debug|x64
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Release|Win32.ActiveCfg = Release|Win32
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Release|Win32.Build.0 = Release|Win32
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Release|x64.ActiveCfg = Release|x64
+		{1DCF5D59-6E61-4C98-A863-36BF15532385}.Release|x64.Build.0 = Release|x64
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Debug|Win32.Build.0 = Debug|Win32
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Debug|x64.ActiveCfg = Debug|Win32
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Release|Win32.ActiveCfg = Release|x64
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Release|Win32.Build.0 = Release|x64
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Release|x64.ActiveCfg = Release|x64
+		{8B36BFF5-84A4-45F1-A189-998B0A12778E}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

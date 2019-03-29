@@ -1,0 +1,81 @@
+% contact locations
+r=[[0;-3/2;sqrt(3)/2],...
+    [0;3/2;sqrt(3)/2],...
+    [3*sqrt(3)/8;0;3*sqrt(3)/4],...
+    [-3*sqrt(3)/8;0;3*sqrt(3)/4]];
+
+% contact normals
+n=[[0;sqrt(3)/2;1/2],[0;-sqrt(3)/2;1/2],[-3/5;0;-4/5],[3/5;0;-4/5]];
+
+% translational and torsional friction coefficients
+friction=[0.2 0.2];
+
+% contact model
+contact='SFCe';
+
+% resolution
+%resolution=[7 4];
+resolution=[5 2];
+
+wsize=2*resolution(1)*resolution(2)-resolution(1)+2;
+
+% constructing wrench space
+W=zeros(6,wsize*size(r,2));
+
+for n1=1:size(r,2);
+    W(:,wsize*(n1-1)+1:wsize*n1)=Algorithms.FrictionConeDiscretization(n(:,n1),r(:,n1),contact,friction,eye(4),resolution);
+end
+W=[zeros(6,1) W]';
+% obtaining convex hull
+
+indices=convhulln(W,{'Qt','Qx'});
+K=unique(reshape(indices,size(indices,2)*size(indices,1),1));
+WC=W(K,:)';
+
+% computing grasp quality
+Wreq=[eye(6),-eye(6)];  % 6 dimensional basis and its oposite
+%%
+tic;
+q=zeros(1,12);
+for nn=1:size(Wreq,2);
+    [z,V]=Algorithms.RayShootingIntersection(Wreq(:,nn),WC);
+    q(nn)=norm(z)/norm(Wreq(:,nn));
+end
+
+qf=max(q);
+ttime=toc;
+
+%% 
+% Using GJK in order to obtain a polytope that contains the origin
+[pk,d,Ak]=Algorithms.GJKOrigin2Set(WC);
+fprintf('\nClosest Distance:\n')
+disp(d)
+
+fprintf('\nClosest Point:\n')
+disp(pk)
+
+fprintf('\nResulting Affinely independent subset of A:\n')
+disp(Ak)
+
+%%
+% Using Penetration Depth to obtain the closest point in the Wrench space
+% to the origin
+tic;
+[pk,d,Ak]=Algorithms.PenetrationDepthShow(WC,0.000001);
+
+fprintf('\nTotal Time:\n')
+disp(toc)
+
+fprintf('\nClosest Distance:\n')
+disp(d)
+
+fprintf('\nClosest Point:\n')
+disp(pk)
+
+fprintf('\nResulting expanded polytope subset of A:\n')
+disp(Ak.vertices)
+
+
+
+
+

@@ -1,0 +1,15 @@
+<!-- Instructions go here -->
+<MyStruct>
+  <field1>[4 5 6 7;2 8 9 26]</field1>
+  <field2>
+    <item>for_all</item>
+    <item>for_and</item>
+  </field2>
+  <field3>
+    <subfield1>[5 6 9 3;8 2 4 8]</subfield1>
+    <subfield2>[1 1 1]</subfield2>
+    <subfield1/> 
+    <subfield2>[2 0 0;0 2 0;0 0 2]</subfield2>
+  </field3>
+  <field4>28</field4>
+</MyStruct>

@@ -1,0 +1,13 @@
+% changes
+# Template Classes
+    !-      Create methods that enable updating the information contain in the
+            ! mat files without having to the object entirely
+         
+    !-      Store the data points,(vertices and faces ) in mat file that
+            !stores the entity details
+
+# Toolkit Class
+    !-      Write function that generates hierarchical list with the
+            ! functions grouped by classes and functionality 
+
+    

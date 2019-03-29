@@ -1,0 +1,350 @@
+classdef Hyperplane < handle
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Partially Public Properties
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(SetAccess = protected)
+        
+        mNormalVector
+        mOffset
+        mNumOfDimensions
+        mTolerance = 1e-3;
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Constructor 
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function hp = Hyperplane(varargin)
+            % Hyperplane
+            %   Creates a hyperplane in n dimensional space
+            %
+            %   hp = Hyperplane
+            %       Creates a hyperplane with normal [0 0 1]' and offset =
+            %       0
+            %
+            %   hp = Hyperplane(nrml)
+            %       Creates a hyperplane with the corresponding normal 
+            %       vector nrml and offset = 0.  The dimension of the
+            %       hyperplane is determined by the number of elements in
+            %       the normal vector.
+            %
+            %       Input:
+            %           nrml :  n x 1 double
+            %
+            %       Output:
+            %           hp: 1 x 1 Hyperplane Object
+            %
+            %
+            %   hp = Hyperplane(nrml, offset)
+            %       Creates a hyperplane with the corresponding normal 
+            %       vector nrml and offset.  The dimension of the
+            %       hyperplane is determined by the number of elements in
+            %       the normal vector.  Therefore, the plane equation is as
+            %       follows n1*x1 + n2*x2 + ... nd*xd - offset = 0, where
+            %       the set [n1;n2;n3 ...nd] are the components of the
+            %       normal vector.
+            %
+            %       Input:
+            %           nrml :  n x 1 double
+            %           offset: 1 x 1 double
+            %
+            %       Output:
+            %           hp: 1 x 1 Hyperplane Object
+            
+            switch nargin
+                
+                case 0
+                    
+                    hp.mNormalVector = [0; 0; 1];
+                    hp.mOffset = 0;
+                    hp.mNumOfDimensions = 3;
+                    
+                    return;
+                    
+                case 1
+                    
+                    if isa(varargin{1},'Geometry.Hyperplane')
+                        
+                        hp.loadFromObj(varargin{1});
+                        return;
+                        
+                    end
+                    
+                    if isa(varargin{1},'numeric')
+                        
+                        normal = reshape(varargin{1},length(varargin{1}),1);
+                        offset = 0;
+                        
+                    else
+                        
+                        error('Input argument must be numeric')
+                        
+                    end
+                    
+                case 2
+                    
+                    if isa(varargin{1},'numeric') && isa(varargin{2},'numeric')
+                        
+                        normal = reshape(varargin{1},length(varargin{1}),1);
+                        offset = varargin{2};
+                        
+                    else
+                        
+                        error('Both input argument must be numeric')
+                        
+                    end
+                    
+                otherwise
+                    
+                    error('too many input arguments')
+                    
+            end
+            
+            hp.mNormalVector = normal;
+            hp.mOffset = offset(1);
+            hp.mNumOfDimensions = length(hp.mNormalVector);
+            
+        end
+        
+    end
+            
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public set methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setNormalVector(hp,normal)
+            
+            if isa(normal,'numeric')
+                
+                hp.mNormalVector = reshape(normal,length(normal),1);
+                hp.mNumOfDimensions = length(hp.mNormalVector);
+                
+            else
+                
+                error('Input argument must be numeric')
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setOffset(hp,offset)
+            
+            if isa(offset,'numeric')
+                
+                hp.mOffset = offset(1);
+                
+            else
+                
+                error('Input argument must be numeric')
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setTolerance(hp,tolerance)
+            
+            hp.mTolerance = tolerance;
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public get methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function normal = getNormalVector(hp)
+            
+            normal = hp.mNormalVector;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function offset = getOffset(hp)
+            
+            offset = hp.mOffset;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function dims = getNumOfDimensions(hp)
+            
+            dims = hp.mNumOfDimensions;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function normal = getUnitNormalVector(hp)
+            
+            normal = hp.mNormalVector/norm(hp.mNormalVector);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function tolerance = getTolerance(hp)
+            
+            tolerance = hp.mTolerance;
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public instance methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods 
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isInPositiveHalfSpace(hp,arg)
+            % Hyperplane.isInPositiveHalfSpace
+            %   Test whether a point in n dimensional space belowns to the
+            %   positive half space of the hyperplane.
+            %
+            %   bool = Hyperplane.isInPositiveHalfSpace(point)
+            %       Test if point belongs to the positive half space of the
+            %       hyperplane.
+            %
+            
+            
+            if isa(arg,'numeric')
+                
+                if size(arg,1) ~= hp.mNumOfDimensions
+                    
+                    error('input must have the same number of dimensions')
+                    
+                end
+                
+                numOfPoints = size(arg,2);
+                
+                dotProduct = sum(arg.*repmat(hp.mNormalVector,1,numOfPoints),1)'- hp.mOffset;
+                
+                bool = (dotProduct) > hp.mTolerance;
+                
+%             elseif isa(arg,'WrenchSpace.WrenchSet')
+%                 
+%                 ws = arg;
+%                 
+%                 if ws.getNumOfDimensions ~= hp.mNumOfDimensions
+%                     
+%                     error('input must have the same number of dimensions')
+%                     
+%                 end
+%                 
+%                 point = ws.computeSupportPoint(hp.mNormalVector);
+%                 bool = hp.isPointInPositiveHalfSpace(point);
+%                 
+            else
+                
+                error('Input must be numeric')
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isInPlane(hp,arg)
+            % Hyperplane.isInPlane
+            %   Test whether a point in n dimensional space lies in the 
+            %   hyperplane.
+            %
+            %   bool = Hyperplane.isInPlane(point)
+            %       Test if point lies in the Hyperplane.
+            %
+            
+            
+            if isa(arg,'numeric')
+                
+                if size(arg,1) ~= hp.mNumOfDimensions
+                    
+                    error('input must have the same number of dimensions')
+                    
+                end
+                
+                numOfPoints = size(arg,2);
+                
+                dotProduct = sum(arg.*repmat(hp.mNormalVector,1,numOfPoints),1)'- hp.mOffset;
+                
+                bool = dotProduct > -hp.mTolerance/2 && (dotProduct) < hp.mTolerance/2;
+                
+%             elseif isa(arg,'WrenchSpace.WrenchSet')
+%                 
+%                 ws = arg;
+%                 
+%                 if ws.getNumOfDimensions ~= hp.mNumOfDimensions
+%                     
+%                     error('input must have the same number of dimensions')
+%                     
+%                 end
+%                 
+%                 point = ws.computeSupportPoint(hp.mNormalVector);
+%                 bool = hp.isPointInPositiveHalfSpace(point);
+%                 
+            else
+                
+                error('Input must be numeric')
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isEquivalentHyperplane(hp,hp2)
+            % bool = Hyperplane.isEquivalentHyperplane(hyperplaneObj)
+            %   test if hyperplane object is equivalent to the hyperplane
+            %   object passed as input argument to the function.
+            
+            if hp == hp2
+                
+                bool = true;
+                return
+                
+            else
+                
+                normalEquals = norm(hp.mNormalVector - hp2.mNormalVector) < hp.mTolerance;
+                
+                offsetEquals = abs(hp.mOffset - hp2.mOffset) < hp.mTolerance;
+                
+                bool = normalEquals && offsetEquals;
+                
+            end
+            
+        end            
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function d = computeDistanceToPoint(hp,arg)
+            
+            d = (hp.mNormalVector'*arg - hp.mOffset)/norm(hp.mNormalVector);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function d = computeAbsDistanceToPoint(hp,arg)
+            
+            d = abs(hp.mNormalVector'*arg - hp.mOffset)/norm(hp.mNormalVector);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function alpha = computeDihedralAngle(hp,hp2)
+            
+            normal1 = hp.getUnitNormalVector;
+            normal2 = hp2.getUnitNormalVector;
+            alpha = normal1'*normal2;
+            
+        end
+        
+    end
+    
+end
+    
+    
+                    
+                    
+            

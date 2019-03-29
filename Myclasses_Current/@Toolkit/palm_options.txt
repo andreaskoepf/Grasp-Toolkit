@@ -1,0 +1,24 @@
+
+-----------------Palm Model Registration ------------------  
+    Select one of the following options 
+                GENERAL ATTRIBUTES
+        1 - (required) Enter Model Name
+        2 - (optional) Enter Tag  
+
+                GEOMETRIC ATTRIBUTES
+        3 - (required) Select Model file
+        4 - (required) Set nodes (fingers base frame)
+        5 - (optional) Set new Reference Frame        
+        6 - (optional) Reduce Patch number 
+        7 - (optional) Set Color
+
+                MASS ATTRIBUTES
+        8 - (optional) Enter Mass
+        9 - (optional) Enter Inertia Tensor
+        10 - (optional) Enter Center of gravity
+
+        11 - COPY DATA FROM REGISTERED MODEL
+        12 - SHOW CURRENT DATA
+        13 - REGISTER
+        14 - INSTRUCTIONS
+        0 -  ABORT SESSION WITHOUT SAVING

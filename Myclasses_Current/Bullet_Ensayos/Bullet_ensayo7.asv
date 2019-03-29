@@ -1,0 +1,57 @@
+%% adding path to the matlab path
+addpath F:\work\Myclasses_Current
+%% creating physics world
+world=PhysicsWorld;
+world.NumberOfSimulationSteps=500;
+%% creating boxes to place in physics world
+colorArray=repmat('yrbgwyrbgwyrbgwyrbgwyrbgw',1,20);
+
+b(25)=Box;
+l=1; % side length
+ind=1;
+for nx=1:5;
+    for ny=1:5;
+        for nz=1:5;
+        
+            b(ind)=Box([l l l]);
+            b(ind).Color=colorArray(ind);
+            b(ind).Frame=Solid.translation('zxy',[20-2*(l)+(nz-1)*3/2*l -2*(l)+(nx-1)*3/2*l -2*(l)+(ny-1)*3/2*l]);
+            
+            
+            
+            ind=ind+1;
+        end
+        
+    end
+end
+
+%%
+s(1)=Sphere(2.5);
+s(1).Color='y';
+s(1).Frame=Solid.translation('z',8);
+
+%% adding objects to the world
+for n=1:length(b);
+    world.addBody(b(n))
+end
+%%
+world.addBody(s)
+
+%% initializing world
+world.initializeSimulation;
+
+%% open visualizer
+world.openVisualizer;
+
+%% running simulation
+world.runSimulation;
+%% pause simulation
+world.pauseSimulation;
+%% resume simulation
+world.resumeSimulation;
+%% close visualizer
+
+
+
+%% clearing world
+world.closeSimulation

@@ -1,0 +1,664 @@
+classdef WrenchSpace < handle
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Partially Public Properties
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(SetAccess = protected)
+        
+        % generating wrench sets
+        mWrenchSets
+        mNumOfWrenchSets = 0;
+        
+        % status flags
+        mRecomputeConvexHull = true;
+        mRecomputeForceClosure = true;
+        mRecomputeProperNPolytope =true;
+        
+        % proper N polytope
+        mIsProperNPolytope = false;
+        
+        % convex hull state
+        mIsForceClosure = false;
+        
+        % quality
+        mQuality = 0;
+        
+        % convex hull attributes
+        mPrimitiveWrenches
+        mNumOfPrimitiveWrenches = 0;
+        
+        mNumOfVertices
+        mNumOfFacets
+        mVertices
+        mFacets
+        mNormals
+        mOffsets
+        mNeighboringFacets
+        mArea
+        mVolume
+        
+        % indexed access attributes
+        mCurrentFacet = 1;
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Public Constant Properties
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    properties(Constant)
+        
+        sQHullFunction = @Geometry.convhulln;
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % Constructor 
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function ws = WrenchSpace(varargin)
+            
+            switch nargin                
+                case 0
+                    
+                    return
+                    
+                case 1
+                    
+                    wrenchSets = varargin{1};
+                    for n = 1:length(wrenchSets);
+                        
+                        ws.addWrenchSet(wrenchSets(n));
+                        
+                    end
+                    
+                otherwise
+                    
+                    error('too many input arguments')
+                    
+            end
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public set methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setWrenchSets(ws,wsArray)
+            
+            if ~isa(wsArray,'WrenchSpace.WrenchSet')
+                
+                error('Input must be a Wrench Set')
+                
+            end
+            
+            ws.mWrenchSets = wsArray;
+            ws.NumWrenchSets = length(wsArray);
+            ws.mRecomputeConvexHull = true;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function setCurrentFacetIndex(ws,index)
+            
+            if index > ws.mNumOfFacets || index < 1
+                
+                error('Input index out of bounds')
+                
+            end
+            
+            ws.mCurrentFacet = index;
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public get methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function wsArray = getWrenchSets(ws)
+            
+            wsArray = ws.mWrenchSets;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function wsCH = getFacetedConvexHull(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            wsCH.vertices = ws.mVertices;
+            wsCH.faces = ws.mFaces;
+            wsCH.offsets = ws.mOffsets;
+            wsCH.normal = ws.mNormals;
+            wsCH.neighboringFacets = ws.mNeighboringFacets;
+            wsCH.area = ws.mArea;
+            wsCH.volume = ws.mVolume;
+            
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getNumOfWrenchSets(ws)
+            
+            val = ws.mNumOfWrenchSets;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getNextFacetHyperplane(ws)
+            
+            ws.mCurrentFacet = ws.mCurrentFacet + 1;
+            val = Geometry.Hyperplane(ws.mNormals(ws.mCurrentFacet,:)',-ws.mOffsets(ws.mCurrentFacet));
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getCurrentFacetHyperplane(ws)
+            
+            val = Geometry.Hyperplane(ws.mNormals(ws.mCurrentFacet,:)',-ws.mOffsets(ws.mCurrentFacet));
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getCurrentFacetNeighboringHyperplanes(ws)
+            
+            indices = ws.mNeighboringFacets(ws.mCurrentFacet,:);
+            
+            val(6) = Geometry.Hyperplane;
+            
+            for n = 1:length(indices);
+                
+                val(n) = Geometry.Hyperplane(ws.mNormals(indices(n),:)',-ws.mOffsets(indices(n)));
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getFacetHyperplane(ws,index)
+            
+            if index < 1 || index > ws.mNumberOfFacets
+                
+                error('index out of bounds')
+                
+            end
+            
+            val = Geometry.Hyperplane(ws.mNormals(index,:)',-ws.mOffsets(index));
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getPrimitiveWrenches(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mPrimitiveWrenches;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getCurrentFacetIndex(ws)
+            
+            val = ws.mCurrentFacet;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getNumOfFacets(ws)
+
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mNumOfFacets;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getNumOfPrimitiveWrenches(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mNumOfPrimitiveWrenches;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getVertices(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mVertices;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getFaces(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mFaces;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getOffsets(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mOffsets;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getNormals(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mNormals;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getNeighboringFacets(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mNeighboringFacets;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getArea(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mArea;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getVolume(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            val = ws.mVolume;
+            
+        end      
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function val = getQuality(ws)
+            
+            if ws.mRecomputeForceClosure || ws.mRecomputeConvexHull
+                
+                ws.computeForceClosure
+                
+            end
+            
+            val = ws.mQuality;
+            
+        end
+        
+    end
+    
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % public instance methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function addWrenchSet(ws,wrenchSet)
+            
+            if ~isa(wrenchSet,'WrenchSpace.WrenchSet')
+                
+                error('input must be a wrench set object')
+                
+            end
+            
+            if ws.mNumOfWrenchSets == 0
+                
+                ws.mWrenchSets = wrenchSet;
+                
+            else
+                
+                ws.mWrenchSets(end+1)= wrenchSet;
+                
+            end
+            
+            ws.mNumOfWrenchSets = ws.mNumOfWrenchSets + 1;
+            ws.mRecomputeConvexHull = true;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function removeWrenchSet(ws,arg)
+            
+            if isa(arg,'numeric')
+                
+                if arg > ws.mNumOfWrenchSets || arg < 1
+                    
+                    error('Input index out of bounds')
+                    
+                end
+                
+                ws.mWrenchSets(arg) = [];
+                ws.mNumOfWrenchSets = ws.mNumOfWrenchSets - 1;
+                
+            elseif isa(arg,'WrenchSpace.WrenchSet')
+                
+                indices = ws.mWrenchSets == arg;
+                
+                ws.mWrenchSets(indices) = [];
+                ws.mNumOfWrenchSets = ws.mNumOfWrenchSets - 1;
+                
+            else
+                
+                error('Input must be an index or a Wrench Set')
+                
+            end
+            
+            ws.mRecomputeConvexHull = true;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function sp = computeSupportPoint(ws,vector)
+            
+            if ws.mRecomputeConvexHull
+                
+                ws.computeConvexHull;
+                
+            end
+            
+            supportPoints = Geometry.supportMapping(vector,ws.mPrimitiveWrenches);
+            sp = supportPoints(:,1);
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function resetCurrentFacetIndex(ws)
+            
+            ws.mCurrentFacet = 1;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isForceClosure(ws)
+            
+            if ws.mRecomputeForceClosure || ws.mRecomputeConvexHull
+                
+                ws.computeForceClosure;
+                
+            end
+            
+            bool = ws.mIsForceClosure;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function bool = isProperNPolytope(ws)
+            
+%             ws.checkIfProperNPolytope;
+%             
+%             bool = ws.mIsProperNPolytope;
+
+            try
+                ws.computeConvexHull;
+                
+            catch
+                
+                ws.mIsProperNPolytope = false;
+                bool = ws.mIsProperNPolytope;
+                return
+                
+            end
+            
+            ws.mIsProperNPolytope = true;
+            bool = ws.mIsProperNPolytope;
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function resetAllFlags(ws)
+            
+            ws.mRecomputeConvexHull = true;
+            ws.mRecomputeForceClosure = true;
+            ws.mRecomputeProperNPolytope =true;
+            
+        end
+            
+        
+            
+    end    
+            
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % protected instance methods
+    % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    methods(Access = protected)
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function computeConvexHull(ws)
+            
+            if ~ws.mRecomputeConvexHull
+                
+                return
+                
+            end
+            
+            % computing total number of original primitive wrenches
+            numPrimitiveWrenches = 0;
+            for n = 1:ws.mNumOfWrenchSets;
+                
+                numPrimitiveWrenches = ws.mWrenchSets(n).getNumOfPrimitiveWrenches + ...
+                    numPrimitiveWrenches;
+                
+            end
+            
+            primitiveWrenches = zeros(6,numPrimitiveWrenches);
+            
+            startIndex= 0;
+            %numAddedElements = 0;
+            
+            for n = 1:ws.mNumOfWrenchSets;
+                
+                numAddedElements= ws.mWrenchSets(n).getNumOfPrimitiveWrenches;
+                primitiveWrenches(:,startIndex+1:startIndex + numAddedElements) = ...
+                    ws.mWrenchSets(n).getPrimitiveWrenches;
+                
+                startIndex = startIndex + numAddedElements;
+                
+            end
+                        
+            %qHullResult = Geometry.convhulln(primitiveWrenches','Qt Qx QJ Tv',true);
+            qHullResult = Geometry.convhulln(primitiveWrenches','Qt Qx Tv',true);
+            
+            % retaining only the wrenches that lie in the boundary of the
+            % convex hull
+            K = unique(reshape(qHullResult.faces,prod(size(qHullResult.faces)),1));
+            ws.mPrimitiveWrenches = primitiveWrenches(:,K);
+            ws.mNumOfPrimitiveWrenches = size(ws.mPrimitiveWrenches,2);
+            
+            % populating convex hull attributes
+            ws.mVertices = primitiveWrenches';
+            ws.mFacets = qHullResult.faces;
+            ws.mOffsets = qHullResult.offsets;
+            ws.mNormals = qHullResult.normal;
+            ws.mNeighboringFacets = qHullResult.neighboringFacets;
+            ws.mArea = qHullResult.area;
+            ws.mVolume = qHullResult.volume;
+            ws.mNumOfVertices = numPrimitiveWrenches;
+            ws.mNumOfFacets = size(qHullResult.faces,1);
+            
+            ws.mRecomputeConvexHull = false;
+            ws.mRecomputeForceClosure = true;
+            
+        end
+            
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function computeForceClosure(ws)
+            
+            if ws.mRecomputeConvexHull
+                
+                try 
+                    
+                    ws.computeConvexHull;
+                    
+                catch
+                    % convex hull computation failed
+                    warning('Not enough vertices to form an N polytope')
+                    ws.mIsForceClosure = 0;
+                    ws.mRecomputeForceClosure = false;
+                    ws.mQuality = 0;
+                    
+                    return;
+                    
+                end
+                
+            end
+            
+            
+            % computing centroid
+            w = zeros(6,1);
+            wp = ws.mPrimitiveWrenches;
+%             for n = 1:ws.mNumOfWrenchSets;
+%                 
+%                 w = w + ws.mWrenchSets(n).getNormalWrench;
+%                 
+%             end
+            
+            
+            %w = w/(1 + ws.mNumOfWrenchSets);
+            w = (sum(wp,2)/(1 + size(wp,2)));
+            
+            maxNorm = 100*max(abs(ws.mOffsets));
+            
+            %ws.mIsForceClosure = WrenchSpace.forceClosureTest(ws.mPrimitiveWrenches,w);
+            ws.mIsForceClosure = WrenchSpace.forceClosureTest(wp,w/maxNorm(1));
+            
+            ws.mRecomputeForceClosure = false;
+            
+            if ws.mIsForceClosure
+                
+                ws.mQuality = abs(ws.mOffsets(1));
+                
+            else
+                
+                ws.mQuality = 0;
+                
+            end
+            
+        end
+        
+        % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        function checkIfProperNPolytope(ws)
+            
+            % carries out a simple test to check if a proper polytope can
+            % be formed
+            
+            if ws.mNumOfWrenchSets ~= 0
+                
+                % computing total number of original primitive wrenches
+                numPrimitiveWrenches = 0;
+                for n = 1:ws.mNumOfWrenchSets;
+                    
+                    numPrimitiveWrenches = ws.mWrenchSets(n).getNumOfPrimitiveWrenches + ...
+                        numPrimitiveWrenches;
+                    
+                end
+                
+                if numPrimitiveWrenches < 7
+                    
+                    ws.mIsProperNPolytope = false;
+                    ws.mRecomputeProperNPolytope = false;
+                    
+                    return
+                    
+                end
+                
+                primitiveWrenches = zeros(6,numPrimitiveWrenches);
+                
+                startIndex= 0;
+                %numAddedElements = 0;
+                
+                for n = 1:ws.mNumOfWrenchSets;
+                    
+                    numAddedElements= ws.mWrenchSets(n).getNumOfPrimitiveWrenches;
+                    primitiveWrenches(:,startIndex+1:startIndex + numAddedElements) = ...
+                        ws.mWrenchSets(n).getPrimitiveWrenches;
+                    
+                    startIndex = startIndex + numAddedElements;
+                    
+                end
+                
+                w = repmat(primitiveWrenches(:,1),1,numPrimitiveWrenches);
+                
+                % checks that that the same value is not repeated along the
+                % same dimension
+                ws.mIsProperNPolytope = ~any(all(w==primitiveWrenches,2));
+                ws.mRecomputeProperNPolytope = false;
+                
+            else
+                
+                ws.mIsProperNPolytope = false;
+                ws.mRecomputeProperNPolytope = false;
+                
+            end
+            
+            
+            
+        end
+            
+    end 
+    
+end
+        
+        
+    
+    
